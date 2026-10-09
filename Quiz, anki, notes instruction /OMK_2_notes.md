@@ -1,19 +1,21 @@
 # How to Recreate These Medical Study Notes
 > Instructions for future Claude: how to build an HTML study notes page like `Osteoporosis_Pharmacology_Study_Notes.html`.
 
+> **Current Study Hub rule (2026-10):** On Cloudflare, course files are served only after the Study Hub Supabase login is verified by `worker/index.js`. New note and quiz pages must stay under that protected asset tree. They must also suppress browser printing: include `<style>@media print{html{display:none!important}}</style>` in `<head>`, do not add Print/Save-PDF controls or a separate printable window, and verify that the print preview is blank. This rule supersedes the historical print guidance below. A local HTML file or public GitHub copy cannot be access-controlled by the Cloudflare Worker.
+
 ---
 
 ## 1. What These Notes Are
 
 A single-file HTML study document for a medical school lecture, organized around Learning Objectives (LOs). It has one primary display mode, plus an optional condensed view:
 - **Normal mode** — full notes covering all LOs for the lecture
-- **High-Yield One-Pager** — an optional modal overlay that condenses the whole file into a dense, printable 1–2 page cheat sheet organized by learning objective, with its own Print/Save-PDF button (see Section 12)
+- **High-Yield One-Pager** — an optional on-screen modal that condenses the whole file into a dense summary organized by learning objective (see Section 12)
 
 The One-Pager is mandatory — build it when the user wants a condensed pre-exam summary; otherwise the full notes stand alone.
 
 The page is self-contained: no build tools, no frameworks, just one `.html` file with embedded CSS, fonts, and JS.
 
-> **Navigation change (current default).** The table of contents is now a **fixed left sidebar**, not a sticky bar across the top — see **Section 5.2**, which supersedes the old horizontal `.toc-bar`. It keeps the `.toc-bar` class name so existing theme and print rules still match, and it degrades to the original horizontal bar below 1000px. Three things elsewhere in this document depend on it: `.container` must use `94%` rather than `94vw` (Section 6), `@media print` must zero `body`'s left padding (Section 12.5, Mistake 3), and `initScrollspy()` joins the `DOMContentLoaded` init list (Section 9).
+> **Navigation change (current default).** The table of contents is now a **fixed left sidebar**, not a sticky bar across the top — see **Section 5.2**, which supersedes the old horizontal `.toc-bar`. It keeps the `.toc-bar` class name so existing theme rules still match, and it degrades to the original horizontal bar below 1000px. Two things elsewhere in this document depend on it: `.container` must use `94%` rather than `94vw` (Section 6), and `initScrollspy()` joins the `DOMContentLoaded` init list (Section 9).
 
 > **Two variants now exist.** Sections 2–12 below are **Variant 1** — the original system, organized strictly by numbered Learning Objectives, with a 10-theme switcher (Paper/Night/Ocean/Forest/Sepia/Lavender/Rose/Slate/Hemo/Cardio) and a component vocabulary tuned for pharmacology/pathology content (drug grids, hallmark grids, REMS badges, potency bars). **Section 13 is Variant 2** — a lighter-weight system built for `Introduction_to_Therapy_Study_Notes.html`, better suited to lecture content that isn't cleanly split into 2–3 LOs: a single light/dark toggle instead of named themes, and a component vocabulary built around generic "modality cards," mnemonics, and click-to-reveal cases rather than drug-specific components. Both variants share the same underlying philosophy (self-contained file, base64 images, lightbox, table quiz, optional HY one-pager) — pick whichever fits the lecture's actual content shape, and don't mix components from both within one file. **Section 14 is the Study Tools System** — an optional active-recall/progress layer (Recall Mode, per-section reviewed/confidence tracking, TOC scrollspy, collapsible sections, next-question jumper, pinned compare strip, keyboard shortcuts) first built for `Eating_Disorders_Study_Notes.html` on top of Variant 1; it's designed as an add-on layer and can be applied to either variant.
 
@@ -70,7 +72,7 @@ Define all colors as variables so themes can override them cleanly:
   --panel-dark-text: #faf7f2;
 }
 ```
-Make sure these pages can be printable or exported as a pdf
+Keep these pages readable on screen and apply the current no-print rule above.
 add flavicon related to the lecture (can be from image from given class notes (preferred) or emoji
 ---
 
@@ -440,7 +442,7 @@ Dark background (`var(--ink)`), large serif title, subtitle, and a row of stat c
 
 ### 5.2 TOC — Fixed Left Sidebar
 
-> **This replaces the original sticky top bar.** Built for `HIV_Case_Based_Management_Study_Notes.html`. The class name stays `.toc-bar` on purpose — every existing print rule, `body.hy-mode` rule, and per-theme override that already targets `.toc-bar` keeps working with no edits. Only the styling changes from "horizontal strip" to "vertical column."
+> **This replaces the original sticky top bar.** Built for `HIV_Case_Based_Management_Study_Notes.html`. The class name stays `.toc-bar` on purpose so existing `body.hy-mode` rules and per-theme overrides keep working. Only the styling changes from "horizontal strip" to "vertical column."
 >
 > **Why the change:** on a 16" MacBook Pro (Section 6) a horizontal bar wastes a full row of vertical space on every scroll, and once a lecture has 8+ sections the labels get truncated or scroll off-screen. A vertical column has effectively unlimited room for full, readable section names, and it stays visible the whole way down the page.
 
@@ -1115,12 +1117,14 @@ When setting up a new lecture file:
 
 - [ ] `STORAGE_THEME_KEY` constant is unique to this file
 - [ ] `initVisualState()`, `initTableQuiz()`, and `initScrollspy()` all called in `DOMContentLoaded`
-- [ ] TOC sidebar (Section 5.2): `body { padding-left: var(--toc-w) }` set, `.container` uses `94%` not `94vw`, `@media print` zeroes the body padding, and the `.toc-num.dot` active-state overrides are present
+- [ ] TOC sidebar (Section 5.2): `body { padding-left: var(--toc-w) }` set, `.container` uses `94%` not `94vw`, and the `.toc-num.dot` active-state overrides are present
 - [ ] Sidebar checked at a narrow width (&lt; 1000px) to confirm it falls back to the horizontal bar instead of eating the viewport
 - [ ] All theme variable groups overridden in each `[data-theme="..."]` block, **plus the `--panel-dark-bg`/`--panel-dark-text` pair (Section 3)**
 - [ ] After writing/copying theme palettes, **render each theme and check an `.exam-q` box and a `<table>` header specifically** — this is where dark-theme bugs hide (Section 3)
 - [ ] Decide whether this file gets a High-Yield One-Pager (Section 12) — optional, build it only if the user wants a condensed pre-exam summary
-- [ ] If using the One-Pager: `.hy-mini-table` excluded from `initTableQuiz()`, print output actually tested (Section 12.6), not just assumed to work
+- [ ] If using the One-Pager: `.hy-mini-table` excluded from `initTableQuiz()`; the summary remains readable on screen
+- [ ] Cloudflare URL requires the Study Hub login; a signed-out direct link returns to login, then opens this page after sign-in
+- [ ] The no-print guard is present and the browser print preview is blank, including when the One-Pager is open
 - [ ] Container/grid widths scale to fill a 16" MacBook Pro browser window (~1512–1728px) without large empty side margins (Section 6) — checked by resizing/rendering at those widths, not just at 1280px
 
 ---
@@ -1135,7 +1139,7 @@ When setting up a new lecture file:
 6. **Change the localStorage key** — update the `STORAGE_THEME_KEY` constant to a unique per-lecture string so different files don't share state
 7. **Table Quiz is automatic** — `initTableQuiz()` requires no per-table setup; just include it and call it from `DOMContentLoaded`
 7a. **Scale layout width for a 16" MacBook Pro (Section 6)** — use `min(1220px, 94%)`-style container widths and `auto-fit`/`auto-fill` grids instead of flat pixel `max-width`s, so the page fills a ~1512–1728px browser window instead of sitting as a narrow column with empty space on both sides. **Percent, not `vw`** — see the note in Section 6, since `vw` ignores the sidebar's `body` padding and overflows
-7b. **Copy the TOC sidebar wholesale (Section 5.2)** — the CSS, the `.toc-head`/`.toc-group`/`.toc-num` markup, `initScrollspy()`, and the print override are all lecture-independent; the only per-lecture work is writing the link list and deciding which entries get numbers vs. dots
+7b. **Copy the TOC sidebar wholesale (Section 5.2)** — the CSS, the `.toc-head`/`.toc-group`/`.toc-num` markup, and `initScrollspy()` are all lecture-independent; the only per-lecture work is writing the link list and deciding which entries get numbers vs. dots
 8. **Font size control** — copy the `.font-btn-row` HTML and `changeFontSize()` JS verbatim; no edits needed
 9. **If building the High-Yield One-Pager** — draft its content only after the full notes are otherwise done, since it's meant to be a condensed extraction of the real content, not written independently (Section 12)
 
@@ -1147,12 +1151,14 @@ When setting up a new lecture file:
 - Works offline if fonts are cached
 - No framework, no build step — just open in a browser
 - **Images:** use base64-embedded `src` for true portability (one file, zero broken images); use relative paths only if the image folder will always travel with the HTML — see Section 5.11 for the full workflow
+- Put the finished file under the Cloudflare Worker protected course tree. A downloadable or publicly hosted copy cannot be protected by that login.
+- Include the no-print guard from the current Study Hub rule above, and omit print/export controls for lecture content.
 
 ---
 
 ## 12. High-Yield One-Pager (Optional Feature)
 
-An optional condensed-summary feature (see Section 1). A **self-contained modal** with its own hand-written, dense, LO-organized summary — plus a working Print/Save-PDF button that outputs a clean 1–2 page document, not the whole 30+ page file.
+An optional condensed-summary feature (see Section 1). A **self-contained on-screen modal** with its own hand-written, dense, LO-organized summary. Do not add a Print/Save-PDF button.
 
 ### 12.1 The Button — in the sidebar, with the hero as the narrow-screen fallback
 
@@ -1189,7 +1195,7 @@ Keep **both** buttons in the markup and let the breakpoint choose which is visib
 
 > Note the sizing difference: the sidebar button is `display:flex` with `width: calc(100% - 28px)` so it fills the column as a block, at a smaller font than the hero's `inline-flex` pill. Don't just drop the hero `.hy-btn` into the sidebar unchanged — at `.78rem` the label wraps awkwardly inside a 252px column.
 >
-> **Add `.toc-hy-btn` to the `@media print` hide list** alongside `.hy-btn`, or it prints at the top of the first page.
+> The sidebar and hero buttons remain on-screen controls. The global print guard suppresses the whole document during printing.
 
 ```css
 .hy-btn { display: inline-flex; align-items: center; gap: 8px; background: var(--gold);
@@ -1210,7 +1216,6 @@ Place once before `</body>`, alongside the lightbox:
     <div class="hy-modal-header">
       <h2>🎯 [Lecture Topic] — High-Yield One-Pager</h2>
       <div class="hy-modal-actions">
-        <button class="hy-action-btn" onclick="printHY()">🖨️ Print / Save PDF</button>
         <button class="hy-action-btn hy-close-btn" onclick="closeHY()">✕ Close</button>
       </div>
     </div>
@@ -1288,7 +1293,6 @@ function closeHY() {
   document.body.classList.remove('hy-mode');
   document.body.style.overflow = '';
 }
-function printHY() { window.print(); }
 document.addEventListener('DOMContentLoaded', function() {
   const hyModal = document.getElementById('hyModal');
   hyModal.addEventListener('click', function(e) { if (e.target === this) closeHY(); });
@@ -1298,7 +1302,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 ```
 
-**Exclude `.hy-mini-table` from the Table Quiz system** (Section 7) — the quiz toolbar injected above every table would clutter a dense printable reference. Add one guard line at the top of `initTableQuiz()`'s loop:
+**Exclude `.hy-mini-table` from the Table Quiz system** (Section 7) — its small reference table should remain visible rather than gain quiz controls. Add one guard line at the top of `initTableQuiz()`'s loop:
 
 ```js
 document.querySelectorAll('table').forEach(function(table) {
@@ -1307,79 +1311,27 @@ document.querySelectorAll('table').forEach(function(table) {
 });
 ```
 
-### 12.5 Print CSS — the two mistakes to avoid
+### 12.5 Suppress Browser Printing
 
-Getting the print output to be *just* the one-pager (not the whole 30-page document) took two iterations to get right:
+Keep the one-pager as an on-screen modal. Add this guard in `<head>` for every generated note or quiz page:
 
-**Mistake 1 — using `visibility: hidden` instead of `display: none`.** `visibility: hidden` hides an element visually but it still occupies its layout space, so the total page height used for print pagination stays the same as the full document — this produced **40 blank pages** on the first attempt. Always use `display: none` for anything meant to be excluded from the printed flow, not `visibility`.
-
-**Mistake 2 — applying print rules unconditionally.** If `@media print` rules unconditionally hide the hero/sections/footer and show only `.hy-modal`, then printing the page *without opening the modal first* (e.g. a normal Ctrl+P to print the full notes) would incorrectly show only the one-pager instead of the full document. Fix: toggle a class on `<body>` from `openHY()`/`closeHY()` (`hy-mode` above) and scope every print rule to `body.hy-mode`, so print behavior depends on whether the modal is actually open:
-
-```css
-@media print {
-  /* Mistake 3 — see below. Required once the TOC is a fixed left sidebar (5.2). */
-  body { padding-left: 0 !important; }
-  .container { max-width: 100% !important; }
-
-  body.hy-mode .hero, body.hy-mode .toc-bar, body.hy-mode .section,
-  body.hy-mode .lightbox, body.hy-mode .floating-stack, body.hy-mode footer { display: none !important; }
-  body.hy-mode .hy-modal { position: static !important; inset: auto !important; background: none !important;
-    padding: 0 !important; display: block !important; overflow: visible !important; }
-  body.hy-mode .hy-modal-card { position: static !important; max-width: 100% !important; width: 100% !important;
-    box-shadow: none !important; padding: 4px !important; }
-  .hy-modal-actions, .tq-bar, .toc-hy-btn { display: none !important; }
-  .hy-cols { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-
-  /* Shrink typography for print only — screen view stays at normal, readable size */
-  .hy-modal-header h2 { font-size: 1.05rem; }
-  .hy-subhead { font-size: .58rem; margin-bottom: 8px; }
-  .hy-block { padding: 5px 7px; margin-bottom: 6px; }
-  .hy-block h4 { font-size: .68rem; margin-bottom: 3px; padding-bottom: 2px; }
-  .hy-block p, .hy-block li { font-size: .585rem; line-height: 1.28; margin-bottom: 2px; }
-  .hy-mini-table { font-size: .555rem; }
-  .hy-mini-table th, .hy-mini-table td { padding: 1.5px 3px; }
-  .hy-lo-tag { font-size: .55rem; padding: 2px 7px; margin-bottom: 5px; }
-}
+```html
+<style id="study-hub-print-guard">@media print{html{display:none!important}}</style>
+<script>window.print=function(){return false};</script>
 ```
 
-The print-only font shrink at the bottom is optional and content-dependent — add it only if the one-pager's content overflows past 1 page in testing (see 12.6). It has no effect on the on-screen modal, which keeps its normal, comfortably readable size.
+Do not create a separate print window or a PDF export control for the content. Existing pages may contain older print layout CSS; the guard above must win over those styles. Browser printing is only a deterrent: downloaded files, screenshots, and source access cannot be blocked by CSS.
 
-**Mistake 3 — forgetting that hiding the sidebar doesn't reclaim its space.** With the Section 5.2 left sidebar, the existing `.toc-bar { display: none }` print rule removes the column itself, but `body`'s `padding-left: 252px` is still applied — so **every printed page comes out with a blank 252px gutter down the left edge** and the content squeezed into what's left. This affects the *normal* print path (plain Ctrl+P of the full notes), not just the one-pager, so it's easy to miss if you only ever test the modal. Zero `body { padding-left }` and release `.container`'s `max-width` inside `@media print`, as shown above. Both rules are unscoped — they should apply whether or not `hy-mode` is on.
+### 12.6 Verify the Current Behavior
 
-### 12.6 Verifying the print output actually works
-
-**Do not just eyeball the CSS — actually render it.** If you have computer/browser tooling available, open the modal, switch to print media emulation, and export to PDF, then check the page count and read the rendered output:
-
-```python
-# Example verification approach (Playwright)
-page.click(".toc-hy-btn")     # the sidebar button — .hy-btn is display:none above 1000px
-page.emulate_media(media="print")
-page.pdf(path="onepager.pdf", format="Letter", print_background=True)
-# then check page count (pdfinfo) and render to images to actually look at it
-```
-
-**Without Playwright** (it is not installed by default), headless Chrome does the same job if you pre-apply the two classes `openHY()` would have set and print that copy — this exercises the real print CSS path:
-
-```bash
-python3 -c "
-h=open('notes.html',encoding='utf-8').read()
-h=h.replace('<body>','<body class=\"hy-mode\">',1)
-h=h.replace('<div class=\"hy-modal\" id=\"hyModal\">','<div class=\"hy-modal open\" id=\"hyModal\">',1)
-open('print_test.html','w',encoding='utf-8').write(h)"
-chrome --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=hy.pdf http://localhost:PORT/print_test.html
-pdfinfo hy.pdf | grep Pages      # expect 1-3, NOT 40+
-```
-
-Then print the **unmodified** file the same way and confirm you still get the full document (tens of pages) — that is the Mistake 2 check.
-
-A 40-page PDF means Mistake 1 above; a full-document printout when the modal was never opened means Mistake 2. If the one-pager itself is fine but runs 2+ pages, either trim content or add the print-only font-size shrink from 12.5 — verify by re-running the export, don't assume a CSS tweak worked.
+Open the page through a Cloudflare preview and confirm a signed-out direct link shows Study Hub login. After sign-in, confirm the requested page opens. Open the full notes and the High-Yield modal, then confirm each browser print preview is blank. Check that quiz interactions still work.
 
 ### 12.7 Content-Writing Guidance
 
 - **Organize strictly by learning objective**, one column per LO (or merge into fewer/more columns if there are more or fewer than 3 LOs) — this is what makes it a "high-yield" page rather than just a shorter version of the full notes.
 - Each `.hy-block` should be a tight cluster of 3–8 bullet points or a small table — mnemonics, duration/threshold tables, drug-class rankings, "gold standard" facts, and scenario→treatment quick-picks compress especially well.
 - **Don't just rename class-level content — include the actual named drugs/entities.** A first pass that only lists "SSRI," "SNRI," "TCA" without naming sertraline/fluoxetine/etc. defeats the purpose of a differentiation-focused study aid; go back through the full document's drug-grid cards and pull the individual names and their one-line differentiators into the one-pager.
-- End with the full-width master reference table (12.2) pulling together every named entity in the document (drug generic + brand, MOA, indications, contraindications, or the equivalent for non-pharm content) — this is worth doing even if it pushes the print output to 2 pages, since completeness matters more than a strict 1-page limit for this kind of appendix.
+- End with the full-width master reference table (12.2) pulling together every named entity in the document (drug generic + brand, MOA, indications, contraindications, or the equivalent for non-pharm content). Keep it scrollable and readable on screen; completeness matters more than a strict one-screen limit.
 
 ---
 
@@ -1394,7 +1346,7 @@ Reach for Variant 2 when:
 - The content is conceptual/theory-driven (history, modalities, theory comparison) rather than drug- or pathology-enumeration-driven — Variant 1's drug-grid/hallmarks-grid/p53-grid/REMS-badge/potency-bar vocabulary (5.12–5.17) doesn't map cleanly onto it.
 - A simpler light/dark toggle is preferable to maintaining five full named-theme palettes.
 
-Both variants are single self-contained `.html` files with base64-embedded images, a click-to-zoom lightbox, an interactive table-quiz feature, and an optional printable High-Yield One-Pager modal — the philosophy is identical, only the visual system and component vocabulary differ.
+Both variants are single self-contained `.html` files with base64-embedded images, a click-to-zoom lightbox, an interactive table-quiz feature, and an optional on-screen High-Yield One-Pager modal — the philosophy is identical, only the visual system and component vocabulary differ.
 
 ### 13.1 Fonts & Color System
 
@@ -1654,20 +1606,9 @@ The button lives in the **topbar**, not the hero, styled as a filled gold pill:
 <button class="hy-btn" id="hyOpenBtn" title="One-page high-yield summary">⭐ HIGH YIELD</button>
 ```
 
-#### 13.5.1 Print CSS — a Masonry Technique for Uneven Card Heights
+#### 13.5.1 Screen Layout for Uneven Card Heights
 
-Variant 1's print CSS (12.5) uses a plain `grid-template-columns: repeat(3, 1fr)`, which works well when the content really is 3 roughly-even LO columns. Variant 2's cards are *uneven* heights (a short "Practice Question Recap" card next to a long "Ego Defenses" card) — reusing a strict grid for print produced a real, verified bug: **the one-pager printed to 2 pages with a large empty gap on both**, because CSS Grid sizes every row by its tallest cell, wasting the shorter cells' unused space instead of letting later content flow up into it.
-
-**Fix — switch the print layout from `grid` to CSS multi-column (`column-count`), and pull the one full-width card out of the column flow with `column-span: all`:**
-```css
-@media print{
-  .hy-grid{display:block !important;column-count:3 !important;column-gap:9px !important;}
-  .hy-card{display:block !important;width:100% !important;margin:0 0 7px !important;break-inside:avoid;}
-  .hy-full{column-span:all !important;}
-  @page{size:landscape;margin:6mm;}
-}
-```
-This lets the small cards flow masonry-style — filling gaps top-to-bottom, column by column — instead of being locked into a rigid row grid, while the full-width card still breaks cleanly across all columns wherever it falls in the source order. **Verified by actually exporting to PDF and checking the page count dropped from 2 → 1**, not by re-reading the CSS — the same "don't just eyeball it" lesson as Variant 1's 12.6, applied to a different underlying bug.
+Use a responsive screen layout that keeps the topic cards readable. Do not copy the older print-specific masonry rules into a new page. Variant 2 uses the same no-print guard and login verification steps as Variant 1 (Sections 12.5–12.6).
 
 ### 13.6 Known Pitfalls Found This Build (mirrors Variant 1 Section 3's pitfall callouts)
 
@@ -1686,7 +1627,7 @@ Don't just read the CSS/JS back and reason about it — actually drive the page 
 - Click every `.qbox` option and confirm the `.correct` / `.incorrect` / `.explain.show` classes land on the right elements.
 - Open the lightbox, step through `ArrowRight`/`ArrowLeft`, close with `Escape`, and confirm `document.documentElement.scrollWidth` never exceeds the viewport width — check this at **320px, 390px, 768px, and desktop**, not just desktop.
 - For any fixed-position modal (the HY summary, the lightbox): pull `getBoundingClientRect()` for the modal card and a representative child, and confirm the child's `right` edge is within the parent's — a visually-plausible screenshot can still be hiding an overflow that a fixed-position ancestor is silently letting bleed past the viewport edge (pitfall 3 above looked fine in a screenshot at first glance; only bounding-box numbers caught it).
-- Export the HY one-pager to PDF and check the actual page count, same as Variant 1's 12.6 — re-check after *every* print-CSS edit, don't assume one tweak fixed it without re-exporting.
+- Confirm the HY one-pager remains readable on screen and that its browser print preview is blank, as in Variant 1 Section 12.6.
 
 ---
 
@@ -1700,13 +1641,7 @@ The design intent: convert a passive reading document into a retrieval-practice 
 
 - Every `.section` needs a stable `id`, listed in one JS constant: `const SECTION_IDS = ['overview','anorexia', ...];` — everything else keys off this array.
 - All persistent state goes to `localStorage` under **file-unique keys** (same rule as the theme key in 5.19): e.g. `'eating-disorders-progress'`, `'eating-disorders-compare-strip'`.
-- All new floating UI must be added to the print-hide rule:
-```css
-@media print{
-  .floating-left, .progress-bar, .compare-strip, .sec-tools, .recall-note{display:none !important;}
-  .section.collapsed .sec-body-outer{grid-template-rows:1fr !important;} /* print expanded even if collapsed on screen */
-}
-```
+- New floating UI must remain usable on screen. The document-wide print guard in Section 12.5 suppresses it during printing.
 - Wrap ALL animations behind reduced-motion:
 ```css
 @media (prefers-reduced-motion: reduce){

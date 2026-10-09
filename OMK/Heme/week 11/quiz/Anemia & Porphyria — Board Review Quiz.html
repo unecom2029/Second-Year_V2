@@ -638,6 +638,10 @@ body.nbme-lock{overflow:hidden}
     return readCookie(NOTE_AUTH_KEY);
   }
   function hasValidNoteAuth(){
+    // Cloudflare serves this page only after the Worker verifies the session.
+    if(location.hostname==='second-year.mehtajeeval1.workers.dev'||
+       (location.hostname.endsWith('.second-year.mehtajeeval1.workers.dev')||
+       location.hostname.endsWith('-second-year.mehtajeeval1.workers.dev')))return true;
     var raw=readAuthPayload();
     if(!raw)return false;
     try{
@@ -679,6 +683,8 @@ html[data-note-auth="locked"] #noteAuthGate{position:fixed;inset:0;z-index:21474
 .note-auth-btn{border:0;border-radius:999px;padding:12px 20px;color:#fff;background:#263241;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 12px 28px rgba(38,50,65,.22)}
 .note-auth-btn:hover{background:#a5142a}
 </style>
+<style id="study-hub-print-guard">@media print{html{display:none!important}}</style>
+<script>window.print=function(){return false};</script>
 </head>
 <body>
 <div id="noteAuthGate" role="dialog" aria-modal="true" aria-labelledby="noteAuthTitle">

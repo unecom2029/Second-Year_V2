@@ -618,6 +618,8 @@ body.nbme-lock{overflow:hidden}
 @media print{.study-window,.study-toolbar{display:none!important}}
 
 </style>
+<style id="study-hub-print-guard">@media print{html{display:none!important}}</style>
+<script>window.print=function(){return false};</script>
 </head>
 <body>
 <div class="toast-wrap" id="toastWrap"></div>
@@ -982,7 +984,7 @@ function setReadingTheme(theme){
   try{localStorage.setItem('quiz-builder-reading-theme',theme);}catch(e){}
 }
 function exportSummarySheet(){
-  var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>'+escapeStudyText(getQuizTitle())+' — Summary</title><style>'+getSummaryPrintStyles()+'</style></head><body>'+buildReviewSheetHTML(true)+'</body></html>';
+  var html='<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>'+escapeStudyText(getQuizTitle())+' — Summary</title><style>'+getSummaryExportStyles()+'</style><style>@media print{html{display:none!important}}</style></head><body>'+buildReviewSheetHTML(true)+'</body></html>';
   triggerQuizDownload(new Blob([html],{type:'text/html;charset=utf-8'}),buildDownloadFileName(getQuizTitle()).replace(/\.html$/i,' Summary.html'));
 }
 function calculateExpression(source){
@@ -2139,9 +2141,9 @@ function buildReviewSheetItemsHTML(){
     </article>`;
   }).join('');
 }
-function buildReviewSheetHTML(forPrint){
+function buildReviewSheetHTML(forExport){
   var title=getQuizTitle();
-  var actionHTML=forPrint?'':`<div class="sum-actions"><button class="sum-btn" type="button" onclick="hideSummarySheet()">← Back to Questions</button><button class="sum-btn primary" type="button" onclick="printSummarySheet()">🖨 Print / Save PDF</button><button class="sum-btn" type="button" onclick="exportSummarySheet()">Export Summary</button></div>`;
+  var actionHTML=forExport?'':`<div class="sum-actions"><button class="sum-btn" type="button" onclick="hideSummarySheet()">← Back to Questions</button><button class="sum-btn" type="button" onclick="exportSummarySheet()">Export Summary</button></div>`;
   return `<section class="sum-sheet" id="summarySheet">
     <div class="sum-head">
       <div>
@@ -2155,7 +2157,7 @@ function buildReviewSheetHTML(forPrint){
     <div class="sum-list">${buildReviewSheetItemsHTML()}</div>
   </section>`;
 }
-function getSummaryPrintStyles(){
+function getSummaryExportStyles(){
   return `
     .study-notes-text{white-space:pre-wrap;overflow-wrap:anywhere}img{max-width:100%;height:auto}
     .qfig{margin:12px 0;break-inside:avoid}.qfig img{width:100%;height:auto}.qfig-cap{font-size:12px;color:#555}
@@ -2187,21 +2189,6 @@ function getSummaryPrintStyles(){
     .sum-label{font-family:Consolas,monospace;font-size:10px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#6B7689;margin-bottom:8px}
     .sum-text{font-size:14px;line-height:1.62;color:#1E1E20}
   `;
-}
-function printSummarySheet(){
-  if(!isQuizComplete())return;
-  var printWindow=window.open('','_blank','noopener,noreferrer,width=1120,height=900');
-  if(!printWindow){
-    showToast('Allow pop-ups so I can open the printable review sheet.','err');
-    return;
-  }
-  printWindow.document.open();
-  printWindow.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${getQuizTitle()} — Review Sheet</title><style>${getSummaryPrintStyles()}</style></head><body>${buildReviewSheetHTML(true)}</body></html>`);
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(function(){
-    printWindow.print();
-  },250);
 }
 function buildNbmeCompletionViewHTML(){
   var finishHTML=buildFinishHTML({allowMinimize:true});
@@ -2294,7 +2281,6 @@ function buildFinishHTML(options){
     ${mainHTML}
     <div class="fin-btns">
       ${summaryBtn}
-      <button class="fin-btn" onclick="printSummarySheet()">🖨 Print Summary</button>
       <button class="fin-btn" onclick="resetQuiz()">↺ Retake</button>
       <button class="fin-btn" onclick="exitQuiz()">✕ Exit</button>
     </div>

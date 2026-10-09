@@ -29,6 +29,11 @@
     return readCookie(NOTE_AUTH_KEY);
   }
   function getAuthState(){
+    // Cloudflare has already checked this student's access before serving the page.
+    if(location.hostname==='second-year.mehtajeeval1.workers.dev'||
+       (location.hostname.endsWith('.second-year.mehtajeeval1.workers.dev')||
+       location.hostname.endsWith('-second-year.mehtajeeval1.workers.dev')))
+      return {allowed:true,reason:'unlocked'};
     var raw=readAuthPayload();
     if(!raw)return {allowed:false,reason:'login'};
     try{
@@ -879,6 +884,8 @@ html[data-note-auth="locked"] #noteAuthGate{
 }
 .note-auth-btn:hover{background:#cf4520}
 </style>
+<style id="study-hub-print-guard">@media print{html{display:none!important}}</style>
+<script>window.print=function(){return false};</script>
 </head>
 <body>
 <div id="noteAuthGate" role="dialog" aria-modal="true" aria-labelledby="noteAuthTitle">
