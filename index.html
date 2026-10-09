@@ -2166,17 +2166,13 @@ body:not(.quiz-builder-enabled) .quiz-builder-wrap{display:none!important}
   <div class="auth-shell">
     <div class="auth-card auth-login" id="authLoginCard">
       <div class="auth-kicker"><span class="auth-kicker-accent">2nd Year</span><span class="auth-kicker-text">UNE COM Study Hub</span></div>
-      <h1>Sign in with your UNE email</h1>
-      <p class="auth-sub">Enter your approved <strong>@une.edu</strong> login email to unlock 2nd Year.</p>
+      <h1 id="authTitle">Sign in with your UNE email</h1>
+      <p class="auth-sub" id="authSubtitle">Enter your approved <strong>@une.edu</strong> login email to unlock 2nd Year.</p>
       <div class="auth-exam-reminder" id="authExamLogin" hidden></div>
       <form class="auth-form" id="authForm">
         <label class="auth-label" for="authEmail">UNE login email</label>
         <input class="auth-input" id="authEmail" name="email" type="email" inputmode="email" autocomplete="email" placeholder="name@une.edu" required>
-        <div class="auth-password-field" id="jeevalPasswordField" hidden>
-          <label class="auth-label" for="authPassword">Password</label>
-          <input class="auth-input" id="authPassword" name="password" type="password" autocomplete="current-password" placeholder="Enter your password">
-        </div>
-        <button class="auth-btn" type="submit">Enter Study Hub</button>
+        <button class="auth-btn" id="authSubmit" type="submit">Enter Study Hub</button>
       </form>
       <div class="auth-msg" id="authMsg">Access is limited to approved UNE accounts in accordance with UNE content distribution expectations. If you would like access, please contact admin.</div>
       <div class="auth-login-quote" id="authLoginQuote"></div>
@@ -2205,60 +2201,8 @@ body:not(.quiz-builder-enabled) .quiz-builder-wrap{display:none!important}
     <div class="admin-card">
       <div class="auth-kicker">Administrator Access</div>
       <div class="admin-title">Manage approved UNE logins</div>
-      <div class="admin-sub">Use your admin email and password to add approved users without editing the file manually.</div>
-
-      <div id="adminLoginPanel">
-        <form class="admin-form" id="adminLoginForm">
-          <div class="admin-row">
-            <div>
-              <label class="auth-label" for="adminEmail">Admin email</label>
-              <input class="auth-input" id="adminEmail" name="adminEmail" type="email" inputmode="email" autocomplete="email" placeholder="jmehta@une.edu" required>
-            </div>
-            <div>
-              <label class="auth-label" for="adminPassword">Password</label>
-              <input class="auth-input" id="adminPassword" name="adminPassword" type="password" autocomplete="current-password" placeholder="••••••••" required>
-            </div>
-          </div>
-          <div class="admin-btns">
-            <button class="admin-btn primary" type="submit">Unlock administrator tools</button>
-            <button class="admin-btn secondary" type="button" onclick="closeAdminModal()">Close</button>
-          </div>
-        </form>
-      </div>
-
-      <div id="adminManagePanel" style="display:none">
-        <form class="admin-form" id="adminUserForm">
-          <div class="admin-row">
-            <div>
-              <label class="auth-label" for="newUserName">Student name</label>
-              <input class="auth-input" id="newUserName" name="newUserName" type="text" autocomplete="name" placeholder="Jane Doe" required>
-            </div>
-            <div>
-              <label class="auth-label" for="newUserEmail">UNE email</label>
-              <input class="auth-input" id="newUserEmail" name="newUserEmail" type="email" inputmode="email" autocomplete="email" placeholder="jdoe@une.edu" required>
-            </div>
-          </div>
-          <div class="admin-btns">
-            <button class="admin-btn primary" type="submit">Add approved user</button>
-            <button class="admin-btn secondary" type="button" id="adminContinueBtn" onclick="continueAsAdmin()">Enter as admin</button>
-            <button class="admin-btn secondary" type="button" onclick="closeAdminModal()">Done</button>
-          </div>
-        </form>
-
-        <div class="admin-divider"></div>
-
-        <div class="admin-list-wrap">
-          <div class="admin-list-hd">
-            <div class="auth-label" style="margin:0">Approved users</div>
-            <div class="admin-count" id="adminUserCount">0 users</div>
-          </div>
-          <div class="admin-user-list" id="adminUserList"></div>
-        </div>
-
-        <div class="admin-note">This admin setup is front-end only and uses browser storage, so it works well for demos and private testing but is not secure production authentication.</div>
-      </div>
-
-      <div class="admin-msg" id="adminMsg">Admin tools are hidden until your credentials are verified.</div>
+      <div class="admin-sub" id="adminInstructions">Student access is managed by the Study Hub administrator. Please contact the administrator to request access.</div>
+      <div class="admin-btns"><button class="admin-btn secondary" type="button" onclick="closeAdminModal()">Close</button></div>
     </div>
   </div>
 </div>
@@ -2404,6 +2348,7 @@ body:not(.quiz-builder-enabled) .quiz-builder-wrap{display:none!important}
   </div>
 </div>
 
+<script src="assets/study-hub-config.js"></script>
 <script>
 var DATA={
 OMK:{
@@ -3875,19 +3820,15 @@ var w2=window.open('','_blank');if(w2){w2.document.write(h);w2.document.close();
 
 
 /* ═══ AUTH CONFIG ═══ */
-var ADMIN_ACCOUNT={email:'jmehta@une.edu',password:'test123',name:'Jeevs'};
 // Seeded users are baked into the file so GitHub Pages works across browsers.
 // Custom users added through the admin modal still live in localStorage on that device only.
 var AUTH_STORAGE_KEY='une-study-hub-custom-users-v1';
 var AUTH_LAST_LOGIN_KEY='une-study-hub-last-login-v1';
 var AUTH_REMEMBER_KEY='une-study-hub-remembered-auth-v1';
 var AUTH_REMEMBER_COOKIE_KEY=AUTH_REMEMBER_KEY;
-var JEEVAL_LOGIN_PASSWORD='%GcroDa0%';
 var AUTH_LOGIN_EFFECT_HISTORY_COOKIE='une-study-hub-login-effect-history-v1';
 var AUTH_LOGIN_EFFECT_HISTORY_KEY='une-study-hub-login-effect-history-v1';
-    // Fixed per-user session lengths: reloads do not extend either window.
-    var AUTH_REMEMBER_MS=4*60*60*1000;
-    var JEEVAL_REMEMBER_MS=7*24*60*60*1000;
+var AUTH_REMEMBER_MS=4*60*60*1000;
 var AUTH_GRAVITY_LOGIN_CHANCE=.22;
 var AUTH_PAW_LOGIN_CHANCE=.25;
 var AUTH_CAT_INPUT_TIMER=null;
@@ -4510,7 +4451,6 @@ function rebuildAuthUsers(){
 function persistCustomUsers(){
   rebuildAuthUsers();
   safeStorageWrite(AUTH_STORAGE_KEY,JSON.stringify(AUTH_CUSTOM_USERS));
-  renderApprovedUsers();
 }
 function getAuthUser(email){
   email=normEmail(email);
@@ -4551,7 +4491,7 @@ function writeRememberedAuth(email){
     clearRememberedAuth();
     return null;
   }
-  var rememberMs=user.email==='jmehta@une.edu'?JEEVAL_REMEMBER_MS:AUTH_REMEMBER_MS;
+  var rememberMs=AUTH_REMEMBER_MS;
   var rememberedPayload=JSON.stringify({
     email:user.email,
     expiresAt:Date.now()+rememberMs
@@ -4574,6 +4514,7 @@ function enforceAuthExpiry(){
   if(!expiresAt||Date.now()>=expiresAt)logoutApp();
 }
 function setupAuthExpiryWatcher(){
+  if(isSupabaseAuthMode())return;
   window.setInterval(enforceAuthExpiry,30000);
   window.addEventListener('focus',enforceAuthExpiry);
   document.addEventListener('visibilitychange',function(){
@@ -4640,22 +4581,162 @@ function prepareAuthLoginEffect(){
   var defer=window.requestIdleCallback||function(fn){return window.setTimeout(fn,240)};
   defer(function(){preloadAllLoginEffectAssets();});
 }
+var SUPABASE_CLIENT=null;
+var SUPABASE_AUTH_CHECK=null;
+var SUPABASE_OAUTH_PENDING_KEY='une-study-hub-oauth-pending-v1';
+function isSupabaseAuthMode(){
+  var host=window.location.hostname.toLowerCase();
+  return host==='second-year.mehtajeeval1.workers.dev'
+    ||host.endsWith('.second-year.mehtajeeval1.workers.dev');
+}
+function loadSupabaseSdk(){
+  if(window.supabase&&typeof window.supabase.createClient==='function')return Promise.resolve();
+  return new Promise(function(resolve,reject){
+    var script=document.createElement('script');
+    script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.89.0/dist/umd/supabase.js';
+    script.onload=function(){
+      if(window.supabase&&typeof window.supabase.createClient==='function')resolve();
+      else reject(new Error('Supabase SDK did not initialize'));
+    };
+    script.onerror=function(){reject(new Error('Supabase SDK could not be loaded'))};
+    document.head.appendChild(script);
+  });
+}
+function readOAuthPending(){
+  try{return sessionStorage.getItem(SUPABASE_OAUTH_PENDING_KEY)==='1'}catch(err){return false}
+}
+function clearOAuthPending(){
+  try{sessionStorage.removeItem(SUPABASE_OAUTH_PENDING_KEY)}catch(err){}
+}
+function setupSupabaseAuth(){
+  var config=window.STUDY_HUB_SUPABASE||{};
+  var url;
+  try{url=new URL(config.url)}catch(err){}
+  if(!url||url.protocol!=='https:'||!/^sb_publishable_/.test(config.publishableKey||'')){
+    setAuthMsg('Google sign-in is not configured yet. Please contact the Study Hub administrator.','error');
+    return;
+  }
+  clearRememberedAuth();
+  loadSupabaseSdk().then(function(){
+    SUPABASE_CLIENT=window.supabase.createClient(config.url,config.publishableKey,{
+      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+    });
+    SUPABASE_CLIENT.auth.onAuthStateChange(function(event,session){
+      if(event==='SIGNED_OUT'){
+        if(AUTH_STATE.user)location.reload();
+        return;
+      }
+      if(session&&session.user&&!AUTH_STATE.user){
+        // Supabase recommends doing other auth API calls after this callback returns.
+        setTimeout(verifySupabaseSession,0);
+      }
+    });
+    return SUPABASE_CLIENT.auth.getSession();
+  }).then(function(result){
+    if(result.error)throw result.error;
+    if(result.data&&result.data.session)verifySupabaseSession();
+    else setAuthMsg('Sign in with your approved UNE Google account.','');
+  }).catch(function(err){
+    console.error('Study Hub authentication startup failed',err);
+    setAuthMsg('Google sign-in is unavailable right now. Please reload and try again.','error');
+  });
+}
+function verifySupabaseSession(){
+  if(!SUPABASE_CLIENT||AUTH_STATE.user)return Promise.resolve();
+  if(SUPABASE_AUTH_CHECK)return SUPABASE_AUTH_CHECK;
+  SUPABASE_AUTH_CHECK=(async function(){
+    var result=await SUPABASE_CLIENT.auth.getUser();
+    if(result.error||!result.data||!result.data.user){
+      setAuthMsg('Your session could not be verified. Please sign in again.','error');
+      return;
+    }
+    var identity=result.data.user;
+    var email=normEmail(identity.email);
+    if(!/@une\.edu$/.test(email)){
+      await SUPABASE_CLIENT.auth.signOut();
+      clearOAuthPending();
+      setAuthMsg('A UNE Google account is required. Please use your @une.edu account.','error');
+      return;
+    }
+    var approval=await SUPABASE_CLIENT.from('study_hub_approved_emails')
+      .select('email,display_name').eq('email',email).maybeSingle();
+    if(approval.error){
+      console.error('Study Hub approval check failed',approval.error);
+      setAuthMsg('Access could not be checked. Please reload and try again.','error');
+      return;
+    }
+    if(!approval.data){
+      await SUPABASE_CLIENT.auth.signOut();
+      clearOAuthPending();
+      setAuthMsg('That UNE account is not approved yet. Please contact admin for access.','error');
+      return;
+    }
+    var metadata=identity.user_metadata||{};
+    AUTH_STATE.user={
+      id:identity.id,
+      email:email,
+      name:approval.data.display_name||metadata.full_name||metadata.name||nameFromEmail(email)
+    };
+    window.StudyHubAuth={getUserId:function(){return AUTH_STATE.user&&AUTH_STATE.user.id||null}};
+    if(readOAuthPending()){
+      clearOAuthPending();
+      playRandomLoginEffect(AUTH_STATE.user);
+    }else{
+      writeLastLogin(email);
+      unlockApp();
+    }
+  })().finally(function(){SUPABASE_AUTH_CHECK=null});
+  return SUPABASE_AUTH_CHECK;
+}
+async function startSupabaseGoogleSignIn(email,button){
+  if(!SUPABASE_CLIENT){
+    setAuthMsg('Google sign-in is still loading. Please try again in a moment.','error');
+    return;
+  }
+  if(button)button.disabled=true;
+  setAuthMsg('Opening Google sign-in…','');
+  try{
+    try{sessionStorage.setItem(SUPABASE_OAUTH_PENDING_KEY,'1')}catch(err){}
+    var result=await SUPABASE_CLIENT.auth.signInWithOAuth({
+      provider:'google',
+      options:{
+        redirectTo:location.origin+location.pathname,
+        queryParams:{login_hint:email,hd:'une.edu'}
+      }
+    });
+    if(result.error)throw result.error;
+  }catch(err){
+    clearOAuthPending();
+    console.error('Google sign-in failed',err);
+    setAuthMsg('Google sign-in could not start. Please try again.','error');
+    if(button)button.disabled=false;
+  }
+}
 function setupAuth(){
   var form=document.getElementById('authForm');
   var input=document.getElementById('authEmail');
-  var rememberedUser=readRememberedAuth();
-  if(rememberedUser){
+  if(!isSupabaseAuthMode()){
+    var rememberedUser=readRememberedAuth();
+    if(rememberedUser){
       AUTH_STATE.user=rememberedUser;
-    writeLastLogin(rememberedUser.email);
-    unlockApp();
-    return;
+      writeLastLogin(rememberedUser.email);
+      unlockApp();
+      return;
+    }
+  }else{
+    var title=document.getElementById('authTitle');
+    var subtitle=document.getElementById('authSubtitle');
+    var button=document.getElementById('authSubmit');
+    if(title)title.textContent='Sign in with your UNE Google account';
+    if(subtitle)subtitle.innerHTML='Enter your approved <strong>@une.edu</strong> email, then continue with Google.';
+    if(button)button.textContent='Continue with Google';
+    setAuthMsg('Checking your secure sign-in…','');
   }
   prepareAuthLoginEffect();
   if(form&&input){
     form.addEventListener('submit',tryAuthLogin);
     input.addEventListener('input',function(){
       var typed=normEmail(input.value);
-      syncJeevalPasswordField();
       if(AUTH_CAT_INPUT_TIMER)clearTimeout(AUTH_CAT_INPUT_TIMER);
       if(AUTH_SPIDER_INPUT_TIMER)clearTimeout(AUTH_SPIDER_INPUT_TIMER);
       if(AUTH_THANOS_INPUT_TIMER)clearTimeout(AUTH_THANOS_INPUT_TIMER);
@@ -4836,41 +4917,24 @@ function setupAuth(){
       if(typed==='gravity')triggerAuthGravity();
     });
     renderLoginQuote(new Date());
-    syncJeevalPasswordField();
     requestAnimationFrame(fitAuthLoginToViewport);
     setTimeout(function(){input.focus()},120);
   }
-}
-function syncJeevalPasswordField(){
-  var emailInput=document.getElementById('authEmail');
-  var passwordField=document.getElementById('jeevalPasswordField');
-  var passwordInput=document.getElementById('authPassword');
-  if(!emailInput||!passwordField||!passwordInput)return;
-  var required=normEmail(emailInput.value)==='jmehta@une.edu';
-  passwordField.hidden=!required;
-  passwordInput.required=required;
-  if(!required)passwordInput.value='';
+  if(isSupabaseAuthMode())setupSupabaseAuth();
 }
 function setupAdmin(){
-  var loginForm=document.getElementById('adminLoginForm');
-  var userForm=document.getElementById('adminUserForm');
   var modal=document.getElementById('adminModal');
-  if(loginForm)loginForm.addEventListener('submit',verifyAdminLogin);
-  if(userForm)userForm.addEventListener('submit',handleAdminCreateUser);
   if(modal){
     modal.addEventListener('click',function(ev){
       if(ev.target===modal)closeAdminModal();
     });
   }
-  renderApprovedUsers();
-  syncAdminControls();
 }
 function tryAuthLogin(ev){
   ev.preventDefault();
   var input=document.getElementById('authEmail');
   var btn=document.querySelector('.auth-btn');
   var email=normEmail(input&&input.value);
-  var passwordInput=document.getElementById('authPassword');
   if(email==='gravity'){
     triggerAuthGravity();
     return;
@@ -4986,15 +5050,13 @@ function tryAuthLogin(ev){
     setAuthMsg('A UNE account is needed to access this site. Please use your @une.edu email.','error');
     return;
   }
+  if(isSupabaseAuthMode()){
+    startSupabaseGoogleSignIn(email,btn);
+    return;
+  }
   var user=getAuthUser(email);
   if(!user){
     setAuthMsg('That UNE email is not recognized yet. Please contact admin for access.','error');
-    return;
-  }
-  if(email==='jmehta@une.edu'&&(!passwordInput||passwordInput.value!==JEEVAL_LOGIN_PASSWORD)){
-    syncJeevalPasswordField();
-    setAuthMsg('The password for this account is incorrect.','error');
-    if(passwordInput){passwordInput.focus();passwordInput.select();}
     return;
   }
   AUTH_STATE.user=user;
@@ -5865,10 +5927,21 @@ function playWelcome(user){
   writeLastLogin(user.email);
   setTimeout(unlockApp,(special&&special.unlockDelay)||3200);
 }
-function logoutApp(){
+async function logoutApp(){
+  if(isSupabaseAuthMode()){
+    if(!SUPABASE_CLIENT)return;
+    var result=await SUPABASE_CLIENT.auth.signOut();
+    if(result.error){
+      console.error('Study Hub sign-out failed',result.error);
+      return;
+    }
+    AUTH_STATE.user=null;
+    clearOAuthPending();
+    location.reload();
+    return;
+  }
   clearRememberedAuth();
   AUTH_STATE.user=null;
-  AUTH_STATE.admin=false;
   location.reload();
 }
 function unlockApp(){
@@ -5886,14 +5959,13 @@ function unlockApp(){
 }
 function openAdminModal(){
   var modal=document.getElementById('adminModal');
+  var instructions=document.getElementById('adminInstructions');
   if(!modal)return;
+  if(instructions)instructions.textContent=isSupabaseAuthMode()
+    ? 'Approved UNE accounts are managed in Supabase. Contact the Study Hub administrator to request or change access.'
+    : 'This static version uses the existing browser-based approved list. Contact the Study Hub administrator to request access.';
   modal.classList.add('open');
   modal.setAttribute('aria-hidden','false');
-  syncAdminPanels();
-  setTimeout(function(){
-    var target=AUTH_STATE.admin?document.getElementById('newUserName'):document.getElementById('adminEmail');
-    if(target)target.focus();
-  },60);
 }
 function closeAdminModal(){
   var modal=document.getElementById('adminModal');
@@ -5901,108 +5973,9 @@ function closeAdminModal(){
   modal.classList.remove('open');
   modal.setAttribute('aria-hidden','true');
 }
-function syncAdminPanels(){
-  var loginPanel=document.getElementById('adminLoginPanel');
-  var managePanel=document.getElementById('adminManagePanel');
-  var continueBtn=document.getElementById('adminContinueBtn');
-  if(loginPanel)loginPanel.style.display=AUTH_STATE.admin?'none':'block';
-  if(managePanel)managePanel.style.display=AUTH_STATE.admin?'block':'none';
-  if(continueBtn)continueBtn.style.display=document.body.classList.contains('auth-locked')?'inline-flex':'none';
-  renderApprovedUsers();
-  setAdminMsg(
-    AUTH_STATE.admin
-      ? 'Administrator tools unlocked. Added users are stored in this browser.'
-      : 'Admin tools are hidden until your credentials are verified.',
-    AUTH_STATE.admin?'success':''
-  );
-}
 function syncAdminControls(){
   var appBtn=document.getElementById('appAdminBtn');
   if(appBtn)appBtn.style.display='none';
-}
-function verifyAdminLogin(ev){
-  ev.preventDefault();
-  var email=normEmail(document.getElementById('adminEmail').value);
-  var password=document.getElementById('adminPassword').value;
-  if(email!==normEmail(ADMIN_ACCOUNT.email)||password!==ADMIN_ACCOUNT.password){
-    setAdminMsg('Admin email or password is incorrect.','error');
-    return;
-  }
-  AUTH_STATE.admin=true;
-  setAdminMsg('Administrator verified. You can now manage approved users.','success');
-  syncAdminPanels();
-}
-function handleAdminCreateUser(ev){
-  ev.preventDefault();
-  if(!AUTH_STATE.admin){
-    setAdminMsg('Please verify administrator access first.','error');
-    return;
-  }
-  var name=(document.getElementById('newUserName').value||'').trim();
-  var email=normEmail(document.getElementById('newUserEmail').value);
-  if(!name){
-    setAdminMsg('Please enter a student name.','error');
-    return;
-  }
-  if(!/@une\.edu$/i.test(email)){
-    setAdminMsg('Only @une.edu emails can be approved.','error');
-    return;
-  }
-  if(AUTH_SEED_USERS[email]){
-    AUTH_SEED_USERS[email].name=name;
-  }else{
-    AUTH_CUSTOM_USERS[email]={name:name};
-  }
-  persistCustomUsers();
-  document.getElementById('adminUserForm').reset();
-  setAdminMsg('Approved access saved for '+name+' ('+email+').','success');
-}
-function continueAsAdmin(){
-  AUTH_STATE.admin=true;
-  AUTH_STATE.user={email:ADMIN_ACCOUNT.email,name:AUTH_SEED_USERS[ADMIN_ACCOUNT.email].name||ADMIN_ACCOUNT.name};
-  closeAdminModal();
-  if(document.body.classList.contains('auth-locked')){
-    setAuthMsg('Administrator verified. Preparing your welcome screen…','success');
-    playWelcome(AUTH_STATE.user);
-  }
-}
-function removeApprovedUser(email){
-  email=normEmail(email);
-  if(!AUTH_STATE.admin)return;
-  if(AUTH_SEED_USERS[email]){
-    setAdminMsg('Default admin access cannot be removed here.','error');
-    return;
-  }
-  if(!AUTH_CUSTOM_USERS[email])return;
-  delete AUTH_CUSTOM_USERS[email];
-  persistCustomUsers();
-  setAdminMsg(email+' was removed from the approved list.','success');
-}
-function renderApprovedUsers(){
-  var wrap=document.getElementById('adminUserList');
-  var count=document.getElementById('adminUserCount');
-  if(!wrap||!count)return;
-  rebuildAuthUsers();
-  var emails=Object.keys(AUTH_USERS).sort(function(a,b){
-    var an=(AUTH_USERS[a].name||nameFromEmail(a)).toLowerCase();
-    var bn=(AUTH_USERS[b].name||nameFromEmail(b)).toLowerCase();
-    return an.localeCompare(bn)||a.localeCompare(b);
-  });
-  count.textContent=emails.length+' user'+(emails.length===1?'':'s');
-  wrap.innerHTML=emails.map(function(email){
-    var user=AUTH_USERS[email]||{};
-    var name=user.name||nameFromEmail(email);
-    var initial=(name.charAt(0)||email.charAt(0)||'U').toUpperCase();
-    var seeded=!!AUTH_SEED_USERS[email];
-    var actions=seeded
-      ? '<div class="admin-pill">Default</div>'
-      : '<button class="admin-remove" type="button" onclick="removeApprovedUser('+JSON.stringify(email)+')">Remove</button>';
-    return '<div class="admin-user">'
-      + '<div class="admin-user-avatar">'+initial+'</div>'
-      + '<div class="admin-user-meta"><div class="admin-user-name">'+escapeHtml(name)+'</div><div class="admin-user-email">'+escapeHtml(email)+'</div></div>'
-      + actions
-      + '</div>';
-  }).join('')||'<div class="admin-user"><div class="admin-user-meta"><div class="admin-user-name">No approved users yet</div><div class="admin-user-email">Add one above to get started.</div></div></div>';
 }
 function escapeHtml(value){
   return String(value==null?'':value)
