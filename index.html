@@ -4584,6 +4584,7 @@ function prepareAuthLoginEffect(){
 var SUPABASE_CLIENT=null;
 var SUPABASE_AUTH_CHECK=null;
 var SUPABASE_OAUTH_PENDING_KEY='une-study-hub-oauth-pending-v1';
+var SUPABASE_LOGIN_EMAIL_KEY='une-study-hub-login-email-v1';
 function isSupabaseAuthMode(){
   var host=window.location.hostname.toLowerCase();
   return host==='second-year.mehtajeeval1.workers.dev'
@@ -4594,7 +4595,7 @@ function loadSupabaseSdk(){
   if(window.supabase&&typeof window.supabase.createClient==='function')return Promise.resolve();
   return new Promise(function(resolve,reject){
     var script=document.createElement('script');
-    script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.89.0/dist/umd/supabase.js';
+    script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/dist/umd/supabase.js';
     script.onload=function(){
       if(window.supabase&&typeof window.supabase.createClient==='function')resolve();
       else reject(new Error('Supabase SDK did not initialize'));
@@ -4618,10 +4619,24 @@ function setupSupabaseAuth(){
     return;
   }
   clearRememberedAuth();
-  loadSupabaseSdk().then(function(){
+  loadSupabaseSdk().then(async function(){
     SUPABASE_CLIENT=window.supabase.createClient(config.url,config.publishableKey,{
-      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}
+      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false,flowType:'pkce'}
     });
+    var callbackUrl=new URL(location.href);
+    var code=callbackUrl.searchParams.get('code');
+    var result;
+    if(code){
+      try{
+        result=await SUPABASE_CLIENT.auth.exchangeCodeForSession(code);
+      }finally{
+        callbackUrl.searchParams.delete('code');
+        try{history.replaceState(history.state,'',callbackUrl.pathname+callbackUrl.search+callbackUrl.hash)}catch(err){}
+      }
+    }else{
+      result=await SUPABASE_CLIENT.auth.getSession();
+    }
+    if(result.error)throw result.error;
     SUPABASE_CLIENT.auth.onAuthStateChange(function(event,session){
       if(event==='SIGNED_OUT'){
         if(AUTH_STATE.user)location.reload();
@@ -4632,14 +4647,13 @@ function setupSupabaseAuth(){
         setTimeout(verifySupabaseSession,0);
       }
     });
-    return SUPABASE_CLIENT.auth.getSession();
-  }).then(function(result){
-    if(result.error)throw result.error;
-    if(result.data&&result.data.session)verifySupabaseSession();
-    else setAuthMsg('Sign in with your approved UNE Google account.','');
+    if(result.data&&result.data.session)await verifySupabaseSession();
+    else setAuthMsg(readOAuthPending()
+      ? 'UNE sign-in did not finish. Please try again.'
+      : 'Sign in with your approved UNE account.',readOAuthPending()?'error':'');
   }).catch(function(err){
     console.error('Study Hub authentication startup failed',err);
-    setAuthMsg('Google sign-in is unavailable right now. Please reload and try again.','error');
+    setAuthMsg('UNE sign-in could not be completed. Please try again.','error');
   });
 }
 function verifySupabaseSession(){
@@ -4695,9 +4709,10 @@ async function startSupabaseGoogleSignIn(email,button){
     return;
   }
   if(button)button.disabled=true;
-  setAuthMsg('Opening Google sign-in…','');
+  setAuthMsg('Opening UNE sign-in…','');
   try{
     try{sessionStorage.setItem(SUPABASE_OAUTH_PENDING_KEY,'1')}catch(err){}
+    try{sessionStorage.setItem(SUPABASE_LOGIN_EMAIL_KEY,email)}catch(err){}
     var result=await SUPABASE_CLIENT.auth.signInWithOAuth({
       provider:'google',
       options:{
@@ -4708,8 +4723,8 @@ async function startSupabaseGoogleSignIn(email,button){
     if(result.error)throw result.error;
   }catch(err){
     clearOAuthPending();
-    console.error('Google sign-in failed',err);
-    setAuthMsg('Google sign-in could not start. Please try again.','error');
+    console.error('UNE sign-in failed',err);
+    setAuthMsg('UNE sign-in could not start. Please try again.','error');
     if(button)button.disabled=false;
   }
 }
@@ -4728,9 +4743,10 @@ function setupAuth(){
     var title=document.getElementById('authTitle');
     var subtitle=document.getElementById('authSubtitle');
     var button=document.getElementById('authSubmit');
-    if(title)title.textContent='Sign in with your UNE Google account';
-    if(subtitle)subtitle.innerHTML='Enter your approved <strong>@une.edu</strong> email, then continue with Google.';
-    if(button)button.textContent='Continue with Google';
+    try{if(input)input.value=sessionStorage.getItem(SUPABASE_LOGIN_EMAIL_KEY)||''}catch(err){}
+    if(title)title.textContent='Sign in with your UNE account';
+    if(subtitle)subtitle.innerHTML='Enter your approved <strong>@une.edu</strong> email. Your school sign-in will open next.';
+    if(button)button.textContent='Sign in with UNE';
     setAuthMsg('Checking your secure sign-in…','');
   }
   prepareAuthLoginEffect();
