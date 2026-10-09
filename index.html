@@ -4620,7 +4620,7 @@ function setupSupabaseAuth(){
   clearRememberedAuth();
   loadSupabaseSdk().then(function(){
     SUPABASE_CLIENT=window.supabase.createClient(config.url,config.publishableKey,{
-      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}
     });
     SUPABASE_CLIENT.auth.onAuthStateChange(function(event,session){
       if(event==='SIGNED_OUT'){
