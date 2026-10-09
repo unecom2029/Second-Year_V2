@@ -4587,7 +4587,8 @@ var SUPABASE_OAUTH_PENDING_KEY='une-study-hub-oauth-pending-v1';
 function isSupabaseAuthMode(){
   var host=window.location.hostname.toLowerCase();
   return host==='second-year.mehtajeeval1.workers.dev'
-    ||host.endsWith('.second-year.mehtajeeval1.workers.dev');
+    ||host.endsWith('.second-year.mehtajeeval1.workers.dev')
+    ||host.endsWith('-second-year.mehtajeeval1.workers.dev');
 }
 function loadSupabaseSdk(){
   if(window.supabase&&typeof window.supabase.createClient==='function')return Promise.resolve();
