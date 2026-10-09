@@ -4663,7 +4663,9 @@ function verifySupabaseSession(){
       .select('email,display_name').eq('email',email).maybeSingle();
     if(approval.error){
       console.error('Study Hub approval check failed',approval.error);
-      setAuthMsg('Access could not be checked. Please reload and try again.','error');
+      setAuthMsg(approval.error.code==='PGRST205'
+        ? 'Study Hub account setup is incomplete. Please contact the administrator.'
+        : 'Access could not be checked. Please try again later.','error');
       return;
     }
     if(!approval.data){
