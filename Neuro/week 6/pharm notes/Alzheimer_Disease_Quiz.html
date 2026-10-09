@@ -1,0 +1,2144 @@
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script>
+(function(){
+  var NOTE_AUTH_KEY='une-study-hub-remembered-auth-v1';
+  var NOTE_LOGIN_URL='../../../index.html?login=notes';
+
+  function readCookie(name){
+    try{
+      var prefix=encodeURIComponent(name)+'=';
+      var parts=String(document.cookie||'').split(';');
+      for(var i=0;i<parts.length;i++){
+        var part=parts[i].trim();
+        if(part.indexOf(prefix)===0)return decodeURIComponent(part.slice(prefix.length));
+      }
+    }catch(err){}
+    return null;
+  }
+  function validAuth(raw){
+    if(!raw)return false;
+    try{
+      var parsed=JSON.parse(raw);
+      var email=String(parsed&&parsed.email||'').trim().toLowerCase();
+      var expiresAt=Number(parsed&&parsed.expiresAt);
+      return /@une\.edu$/.test(email)&&expiresAt&&Date.now()<expiresAt;
+    }catch(err){return false}
+  }
+  function hasValidNoteAuth(){
+    var stored=null;
+    try{ stored=localStorage.getItem(NOTE_AUTH_KEY); }catch(err){}
+    return validAuth(stored)||validAuth(readCookie(NOTE_AUTH_KEY));
+  }
+  function syncNoteAuth(){
+    document.documentElement.setAttribute('data-note-auth',hasValidNoteAuth()?'unlocked':'locked');
+  }
+  window.openNoteLogin=function(){
+    var loginWindow=window.open(NOTE_LOGIN_URL,'uneStudyHubLogin');
+    if(!loginWindow)window.location.href=NOTE_LOGIN_URL;
+  };
+  window.refreshNoteAuth=syncNoteAuth;
+  window.addEventListener('message',function(event){
+    if(event&&event.data&&event.data.type==='une-study-hub-auth-complete')syncNoteAuth();
+  });
+  window.addEventListener('storage',function(event){
+    if(!event||event.key===NOTE_AUTH_KEY)syncNoteAuth();
+  });
+  window.addEventListener('focus',syncNoteAuth);
+  window.setInterval(syncNoteAuth,1000);
+  syncNoteAuth();
+})();
+</script>
+<title>UNE COM — Custom Quiz Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&amp;family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&amp;family=Nunito:wght@400;600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#12203C;--navy2:#1B2A4A;
+  --teal:#1A7A6D;--teal-glow:#3EC4B2;--teal-mid:#2BA393;--teal-light:#E3F5F2;--teal-deep:#125E54;
+  --green:#2D8659;--green-bg:#E8F5EE;
+  --red:#C44040;--red-bg:#FDF0F0;
+  --amber:#C07B1A;--amber-bg:#FEF5E6;
+  --gold-bg:#FDF6E3;
+  --coral:#E07A5F;
+  --ink:#1E1E20;--ink2:#3E4555;--slate:#6B7689;--mist:#A0AAB8;
+  --rule:#DBD5C9;--cream:#F6F3EC;--warm:#FBF8F3;--white:#FFFFFF;
+  --sh:0 8px 24px rgba(18,32,60,.08);--sh2:0 14px 34px rgba(18,32,60,.10);--sh3:0 28px 70px rgba(18,32,60,.12);
+  --tr:0.25s cubic-bezier(.4,0,.2,1);--r:14px;--rs:8px;
+  --stem-size:25px;--choice-size:15.5px;
+  --app-vh:100dvh;--app-vw:100vw;--viewport-scale:1;--ui-title-size:26px;--ui-control-size:13px;--ui-meta-size:12px;--ui-micro-size:10px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Nunito',sans-serif;background:var(--cream);color:var(--ink);min-height:var(--app-vh);-webkit-font-smoothing:antialiased}
+body.nbme-lock{overflow:hidden}
+.view{display:none}.view.active{display:block}
+#viewQuizNbme{height:var(--app-vh);overflow:hidden}
+#viewQuizNbme.active{position:fixed;inset:0;z-index:40}
+
+/* ══ SETUP VIEW ══ */
+.setup-page{min-height:var(--app-vh);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px}
+.setup-card{background:var(--white);border-radius:24px;border:1px solid var(--rule);box-shadow:var(--sh3);width:min(680px,100%);overflow:hidden}
+.setup-top{background:linear-gradient(135deg,var(--navy) 0%,#1B2A4A 100%);padding:36px 36px 30px;text-align:center}
+.setup-emoji{font-size:48px;margin-bottom:14px}
+.setup-title{font-family:'Crimson Pro',serif;font-size:36px;font-weight:700;color:#fff;letter-spacing:-.4px;margin-bottom:6px}
+.setup-title em{font-style:normal;color:var(--teal-glow)}
+.setup-sub{font-size:15px;color:rgba(255,255,255,.65);line-height:1.6}
+
+.setup-body{padding:32px 36px 36px}
+
+/* instruction steps */
+.how-title{font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--mist);margin-bottom:16px}
+.steps{display:flex;flex-direction:column;gap:12px;margin-bottom:28px}
+.step{display:flex;gap:14px;align-items:flex-start;padding:14px 16px;border-radius:12px;background:var(--warm);border:1px solid var(--rule)}
+.step-num{width:28px;height:28px;border-radius:50%;background:var(--navy);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;font-family:'IBM Plex Mono',monospace}
+.step-text{font-size:14px;color:var(--ink2);line-height:1.6}
+.step-text strong{color:var(--ink);display:block;margin-bottom:2px}
+
+/* prompt copy box */
+.prompt-wrap{background:var(--navy);border-radius:12px;padding:16px 18px;position:relative;margin-bottom:8px}
+.prompt-inner{font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.75;color:#9AD3F2;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.1) transparent;padding-right:70px}
+.copy-prompt-btn{position:absolute;top:12px;right:12px;padding:6px 12px;background:rgba(62,196,178,.15);border:1px solid rgba(62,196,178,.35);border-radius:7px;color:var(--teal-glow);font-size:12px;font-weight:700;cursor:pointer;font-family:'Nunito',sans-serif;transition:all .18s;white-space:nowrap}
+.copy-prompt-btn:hover{background:rgba(62,196,178,.28)}
+.copy-prompt-btn.ok{background:rgba(45,134,89,.2);border-color:rgba(45,134,89,.4);color:#5EC490}
+
+.divider{height:1px;background:var(--rule);margin:24px 0}
+
+/* paste area */
+.field{display:flex;flex-direction:column;gap:7px;margin-bottom:16px}
+.field:last-child{margin-bottom:0}
+.field-note{font-size:12px;line-height:1.55;color:var(--mist)}
+.lbl{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--slate)}
+.inp{padding:10px 14px;border-radius:var(--rs);border:1.5px solid var(--rule);font-family:'Nunito',sans-serif;font-size:14px;font-weight:600;color:var(--ink);background:var(--warm);outline:none;transition:border-color .18s;width:100%}
+.inp:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(62,196,178,.12);background:#fff}
+.ta{width:100%;padding:13px 15px;border-radius:var(--rs);border:1.5px solid var(--rule);font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.7;color:var(--ink);background:var(--warm);resize:vertical;min-height:160px;outline:none;transition:border-color .18s}
+.ta:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(62,196,178,.12);background:#fff}
+.ta::placeholder{color:var(--mist)}
+.setup-actions{display:flex;gap:12px;margin-top:18px}
+.launch-btn{width:100%;padding:16px;border-radius:16px;border:none;background:linear-gradient(135deg,var(--teal-glow),var(--teal-mid));color:var(--navy);font-family:'Nunito',sans-serif;font-size:17px;font-weight:900;cursor:pointer;letter-spacing:.3px;transition:all .2s;box-shadow:0 8px 22px rgba(62,196,178,.3);margin-top:18px}
+.launch-btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(62,196,178,.38)}
+.setup-actions .launch-btn{margin-top:0;flex:1}
+.ghost-btn{padding:16px 18px;border-radius:16px;border:1.5px solid rgba(18,32,60,.12);background:#fff;color:var(--navy);font-family:'Nunito',sans-serif;font-size:15px;font-weight:900;cursor:pointer;letter-spacing:.2px;transition:all .2s;box-shadow:0 8px 22px rgba(18,32,60,.08)}
+.ghost-btn:hover{transform:translateY(-2px);border-color:rgba(26,122,109,.34);color:var(--teal);box-shadow:0 14px 30px rgba(18,32,60,.12)}
+.setup-ui-toggle{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.setup-ui-btn{padding:15px 16px;border-radius:16px;border:1.5px solid rgba(18,32,60,.1);background:var(--warm);color:var(--ink);cursor:pointer;text-align:left;font-family:'Nunito',sans-serif;transition:var(--tr);box-shadow:0 8px 18px rgba(18,32,60,.05)}
+.setup-ui-btn:hover{transform:translateY(-1px);border-color:rgba(26,122,109,.34);background:#fff}
+.setup-ui-btn.active{background:linear-gradient(135deg,var(--navy),#2A3562);border-color:transparent;color:#fff;box-shadow:0 14px 30px rgba(18,32,60,.18)}
+.setup-ui-name{display:block;font-size:14px;font-weight:900;line-height:1.2}
+.setup-ui-meta{display:block;font-size:12px;line-height:1.5;color:inherit;opacity:.72;margin-top:6px}
+.err-msg{padding:10px 14px;border-radius:var(--rs);font-size:13px;font-weight:700;display:none;align-items:center;gap:8px;margin-top:10px;background:var(--red-bg);color:var(--red);border:1px solid rgba(196,64,64,.2)}
+.err-msg.show{display:flex}
+
+/* ══ QUIZ VIEW ══ */
+.quiz-page{min-height:var(--app-vh);display:flex;flex-direction:column}
+
+/* top bar */
+.qt-bar{background:linear-gradient(180deg,var(--navy) 0%,var(--navy2) 100%);display:flex;align-items:center;gap:14px;padding:0 22px;height:52px;flex-shrink:0;box-shadow:0 2px 12px rgba(18,32,60,.22)}
+.qt-name{font-family:'Crimson Pro',serif;font-size:calc(var(--ui-title-size) * .69);font-weight:700;color:#fff;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.2px}
+.qt-btn{padding:8px 14px;border-radius:10px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.75);font-family:'Nunito',sans-serif;font-size:var(--ui-control-size);font-weight:800;cursor:pointer;transition:all .18s}
+.qt-btn:hover{background:rgba(255,255,255,.1);color:#fff}
+.qt-btn.active{background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.34)}
+
+/* grid */
+.qin{width:min(1800px,calc(100vw - 24px));margin:0 auto;padding:22px 20px 72px;display:grid;grid-template-columns:clamp(270px,19vw,330px) minmax(0,1fr);gap:18px 26px;align-items:start}
+
+/* sidebar panels */
+.score-panel{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:0}
+.score-box{position:relative;overflow:hidden;background:color-mix(in srgb,var(--white) 88%,var(--warm) 12%);border-radius:20px;padding:16px 12px 13px;text-align:center;box-shadow:var(--sh2);border:1px solid rgba(18,32,60,.08);transition:var(--tr)}
+.score-box::before{content:'';position:absolute;left:14px;right:14px;top:0;height:4px;border-radius:0 0 999px 999px;background:linear-gradient(90deg,rgba(26,122,109,.16),rgba(62,196,178,.5));opacity:.75}
+.score-box.correct{background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(232,245,238,.98))}.score-box.correct::before{background:linear-gradient(90deg,rgba(45,134,89,.2),rgba(45,134,89,.72))}
+.score-box.incorrect{background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(253,240,240,.98))}.score-box.incorrect::before{background:linear-gradient(90deg,rgba(196,64,64,.18),rgba(196,64,64,.68))}
+.sv{font-family:'Crimson Pro',serif;font-size:34px;font-weight:800;color:var(--navy);line-height:1}
+.sl{font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--mist);font-weight:800;margin-top:7px}
+.score-box.correct .sv{color:var(--green)}.score-box.incorrect .sv{color:var(--red)}
+
+.mode-toggle{display:flex;gap:7px;padding:7px;border-radius:22px;background:rgba(255,255,255,.76);backdrop-filter:blur(8px);border:1px solid rgba(18,32,60,.08);box-shadow:var(--sh2)}
+.mode-btn{flex:1;padding:12px 14px;border-radius:16px;text-align:center;font-family:'Nunito',sans-serif;font-size:13.5px;font-weight:800;cursor:pointer;border:none;background:transparent;color:var(--slate);transition:all .22s}
+.mode-btn:hover{color:var(--navy);background:rgba(18,32,60,.04)}
+.mode-btn.active{background:linear-gradient(135deg,var(--navy),#2A3562);color:#fff;box-shadow:0 10px 22px rgba(27,42,74,.18)}
+.mode-btn .mode-icon{display:block;font-size:19px;margin-bottom:3px}
+
+.timer-card{position:relative;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:42px 16px 16px;background:rgba(255,255,255,.84);border-radius:22px;border:1px solid rgba(18,32,60,.08);box-shadow:var(--sh2);transition:var(--tr)}
+.timer-card.run{border-color:rgba(26,122,109,.34);box-shadow:0 0 0 4px rgba(26,122,109,.08),var(--sh2)}
+.timer-card.warn{border-color:rgba(224,122,95,.4);box-shadow:0 0 0 4px rgba(224,122,95,.08),var(--sh2)}
+.timer-lbl{position:absolute;top:13px;left:15px;font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--mist);font-weight:800;padding:5px 9px;border-radius:999px;background:rgba(18,32,60,.04)}
+.timer-time{font-family:'IBM Plex Mono',monospace;font-size:38px;font-weight:600;color:var(--navy);min-width:110px;text-align:center;letter-spacing:2px}
+.timer-card.warn .timer-time{color:var(--coral)}
+.tbtn{width:40px;height:40px;border-radius:50%;border:1.8px solid rgba(27,42,74,.24);background:rgba(255,255,255,.9);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;transition:var(--tr);color:var(--navy);flex-shrink:0;box-shadow:0 6px 18px rgba(18,32,60,.08)}
+.tbtn:hover{background:var(--navy);color:#fff;transform:translateY(-1px) scale(1.04);border-color:var(--navy)}
+
+.tool-panel{display:flex;flex-wrap:wrap;gap:9px;padding:9px;border-radius:22px;background:rgba(255,255,255,.76);backdrop-filter:blur(8px);border:1px solid rgba(18,32,60,.08);box-shadow:var(--sh2)}
+.q-tool{flex:1 1 120px;min-width:0;padding:11px 14px;border-radius:14px;font-size:12.5px;font-weight:800;border:1.5px solid rgba(18,32,60,.08);background:rgba(255,255,255,.86);cursor:pointer;transition:var(--tr);font-family:'Nunito',sans-serif;color:var(--ink2);box-shadow:0 6px 16px rgba(18,32,60,.06);text-align:left}
+.q-tool:hover{border-color:rgba(26,122,109,.32);color:var(--teal);transform:translateY(-1px);background:#fff}
+.q-tool.active.hl-tool{background:#FFF8B8;border-color:#D3AF2B;color:#6B5C00;box-shadow:0 0 0 3px rgba(211,175,43,.12)}
+.q-tool.active.st-tool{background:var(--red-bg);border-color:rgba(196,64,64,.44);color:var(--red);box-shadow:0 0 0 3px rgba(196,64,64,.08)}
+.q-tool.lab-tool{flex-basis:100%}
+.font-tools{display:flex;align-items:center;gap:8px;flex:1 1 100%;padding:12px 14px;border-radius:14px;border:1.5px solid rgba(18,32,60,.08);background:rgba(255,255,255,.86);box-shadow:0 6px 16px rgba(18,32,60,.06)}
+.font-tools-label{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--slate)}
+.font-tools-group{display:flex;gap:8px;margin-left:auto}
+.font-btn{min-width:42px;padding:9px 12px;border-radius:12px;border:1.5px solid rgba(18,32,60,.1);background:#fff;color:var(--navy);font-family:'Nunito',sans-serif;font-size:13px;font-weight:900;cursor:pointer;transition:var(--tr);box-shadow:0 6px 14px rgba(18,32,60,.05)}
+.font-btn:hover{transform:translateY(-1px);border-color:rgba(26,122,109,.34);color:var(--teal)}
+.font-btn.reset{min-width:54px}
+
+/* sidebar stack */
+.sidebar{display:flex;flex-direction:column;gap:14px;position:sticky;top:18px}
+
+/* question card — pixel-perfect hub match */
+.qcd{background:color-mix(in srgb,var(--white) 94%,var(--warm) 6%);border-radius:28px;overflow:hidden;box-shadow:var(--sh3);border:1px solid rgba(18,32,60,.08);animation:cardIn .42s cubic-bezier(.4,0,.2,1) both}
+@keyframes cardIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.qpg{height:6px;background:color-mix(in srgb,var(--teal) 10%,transparent)}
+.qpf{height:100%;background:linear-gradient(90deg,var(--teal),var(--teal-glow));transition:width .5s cubic-bezier(.4,0,.2,1);border-radius:0 999px 999px 0}
+.qbd{padding:28px 34px 26px}
+.q-review-grid{display:grid;gap:24px}
+.q-review-grid.has-feedback{grid-template-columns:minmax(0,.94fr) minmax(0,1.06fr);align-items:start}
+.q-feedback{min-width:0;align-self:start}
+.q-feedback .exb{margin-top:0;max-height:calc(var(--app-vh) - clamp(180px,24vh,260px));overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(18,32,60,.28) rgba(18,32,60,.08)}
+.q-feedback .exb::-webkit-scrollbar{width:10px}
+.q-feedback .exb::-webkit-scrollbar-track{background:rgba(18,32,60,.08);border-radius:999px}
+.q-feedback .exb::-webkit-scrollbar-thumb{background:rgba(18,32,60,.28);border-radius:999px}
+.qnum{display:inline-flex;align-items:center;padding:6px 11px;border-radius:999px;background:rgba(18,32,60,.045);font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mist);letter-spacing:1.8px;text-transform:uppercase;margin-bottom:14px;font-weight:700}
+.qnum.marked{background:var(--gold-bg);color:var(--amber)}
+.qstem{font-family:'Crimson Pro',serif;font-size:var(--stem-size);line-height:1.35;margin-bottom:22px;font-weight:600;color:var(--ink);letter-spacing:-.15px}
+.qstem mark{background:#FFFAAD;padding:1px 3px;border-radius:3px;color:inherit}
+.qstem s{color:var(--mist);text-decoration:line-through}
+.ach{display:grid;gap:10px}
+.ac{display:flex;align-items:flex-start;gap:14px;padding:15px 18px;border:1.5px solid rgba(18,32,60,.09);border-radius:18px;cursor:pointer;transition:var(--tr);background:color-mix(in srgb,var(--warm) 78%,var(--white) 22%);box-shadow:0 6px 18px rgba(18,32,60,.04)}
+.ac:hover:not(.dis){border-color:rgba(26,122,109,.4);background:linear-gradient(180deg,#fff,#F0F7F5);transform:translateY(-1px)}
+.ac.sel{border-color:rgba(26,122,109,.5)!important;background:linear-gradient(180deg,#fff,#EFF7F5)!important;transform:translateY(-1px)}
+.ac.cor{border-color:rgba(45,134,89,.44)!important;background:linear-gradient(180deg,#fff,#EDF8F1)!important}
+.ac.inc{border-color:rgba(196,64,64,.4)!important;background:linear-gradient(180deg,#fff,#FDF2F2)!important}
+.ac.dis{cursor:default;transform:none!important}
+.cl{width:42px;height:42px;border-radius:50%;border:1.8px solid rgba(18,32,60,.12);display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;flex-shrink:0;transition:var(--tr);background:#fff;box-shadow:0 6px 14px rgba(18,32,60,.05)}
+.ac.sel .cl{background:var(--teal)!important;border-color:var(--teal)!important;color:#fff!important}
+.ac.cor .cl{background:var(--green)!important;border-color:var(--green)!important;color:#fff!important}
+.ac.inc .cl{background:var(--red)!important;border-color:var(--red)!important;color:#fff!important}
+.ac-txt{font-size:var(--choice-size);font-weight:600;line-height:1.5;color:var(--ink);padding-top:9px}
+.ac-txt mark{background:#FFFAAD;padding:1px 2px;border-radius:3px;color:inherit}
+.ac-txt s{color:var(--mist);text-decoration:line-through}
+.submit-row{margin-top:24px;text-align:center}
+.submit-btn{padding:15px 54px;border-radius:18px;background:linear-gradient(135deg,var(--teal),var(--teal-mid));color:#fff;font-family:'Nunito',sans-serif;font-size:17px;font-weight:900;cursor:pointer;border:none;transition:var(--tr);box-shadow:0 10px 24px rgba(26,122,109,.24);letter-spacing:.4px}
+.submit-btn:hover{transform:translateY(-2px);box-shadow:0 16px 30px rgba(26,122,109,.3)}
+.submit-btn:disabled{opacity:.25;cursor:not-allowed;transform:none;box-shadow:none}
+.exb{margin-top:26px;border-radius:22px;overflow:hidden;display:none;border:1px solid rgba(18,32,60,.08);background:#fff}
+.exb.vis{display:block;animation:fadeUp .38s cubic-bezier(.4,0,.2,1)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.exs{padding:20px 24px}.exs+.exs{border-top:1px solid rgba(18,32,60,.06)}
+.exs.exc{background:var(--green-bg);border-left:5px solid var(--green)}
+.exs.exw{background:var(--red-bg);border-left:5px solid var(--red)}
+.exs.exo{background:var(--amber-bg);border-left:5px solid var(--amber)}
+.exs.exe{background:var(--teal-light);border-left:5px solid var(--teal)}
+.exl{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;margin-bottom:10px}
+.exs.exc .exl{color:var(--green)}.exs.exw .exl{color:var(--red)}.exs.exo .exl{color:var(--amber)}.exs.exe .exl{color:var(--teal)}
+.ext{font-size:calc(var(--choice-size) * .97);line-height:1.65;color:var(--ink2)}
+.wce{margin-top:10px;padding-top:10px;border-top:1px solid rgba(196,64,64,.12)}
+.wce strong{color:var(--red);font-family:'IBM Plex Mono',monospace;font-size:12.5px}
+.qnv{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:16px 24px 20px;border-top:1px solid rgba(18,32,60,.08);background:linear-gradient(180deg,color-mix(in srgb,var(--warm) 32%,transparent),color-mix(in srgb,var(--cream) 82%,transparent))}
+.nb{padding:12px 22px;border:1.8px solid rgba(27,42,74,.2);background:#fff;border-radius:16px;cursor:pointer;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;color:var(--navy);transition:var(--tr);box-shadow:0 8px 18px rgba(18,32,60,.06)}
+.nb:hover{background:var(--navy);color:#fff;transform:translateY(-1px);border-color:var(--navy)}
+.nb.pr{background:linear-gradient(135deg,var(--navy),#2A3562);color:#fff;border-color:transparent}
+.nb.pr:hover{background:linear-gradient(135deg,var(--navy2),var(--navy))}
+.nb:disabled{opacity:.22;cursor:not-allowed;transform:none!important;box-shadow:none}
+.nav-dots{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;flex:1}
+.qd{width:10px;height:10px;border-radius:50%;background:rgba(18,32,60,.1);cursor:pointer;border:none;padding:0;transition:var(--tr)}
+.qd:hover{background:rgba(18,32,60,.28);transform:scale(1.25)}
+.qd.on{background:var(--teal-glow);box-shadow:0 0 0 3px rgba(62,196,178,.22)}
+.qd.dc{background:var(--green)}.qd.di{background:var(--red)}
+.qd.asel{background:rgba(18,32,60,.46)}
+.qd.mk{box-shadow:0 0 0 2px rgba(192,123,26,.28)}
+
+/* NBME / NBOME VIEW */
+.nb-wrap{height:var(--app-vh);min-height:var(--app-vh);display:flex;flex-direction:column;overflow:hidden;background:#0d1117}
+.nb-util{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 18px;background:#0d1117;color:#fff}
+.nb-util-name{font-family:'Crimson Pro',serif;font-size:var(--ui-title-size);line-height:1;letter-spacing:-.3px}
+.nb-util-actions{display:flex;flex-wrap:wrap;gap:8px}
+.nb-util-btn{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#fff;font-family:'Nunito',sans-serif;font-size:var(--ui-control-size);font-weight:800;cursor:pointer;transition:var(--tr)}
+.nb-util-btn:hover{background:rgba(255,255,255,.14);transform:translateY(-1px)}
+.nb-app{flex:1;min-height:0;width:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:#fff;overflow:hidden}
+.nb-header,.nb-footer{background:#004976;color:#fff;border-color:#003653;user-select:none}
+.nb-header{min-height:78px;display:grid;grid-template-columns:190px 1fr auto;align-items:stretch;border-bottom:3px solid #003653}
+.nb-status-box{padding:10px 14px;display:flex;flex-direction:column;justify-content:center;border-right:1px solid rgba(255,255,255,.28);line-height:1.15}
+.nb-status-box strong{font-size:calc(var(--ui-title-size) * .66)}
+.nb-status-box span{margin-top:6px;font-size:calc(var(--ui-meta-size) * 1.08);color:rgba(255,255,255,.82)}
+.nb-header-center{display:flex;align-items:center;gap:8px;padding:8px 12px;flex-wrap:wrap}
+.nb-action-btn,.nb-mode-pill{min-height:52px;padding:6px 11px;border:1px solid rgba(255,255,255,.5);border-radius:3px;display:flex;align-items:center;justify-content:center;gap:6px;background:transparent;color:#fff;cursor:pointer;font-family:Arial,Helvetica,sans-serif;font-size:var(--ui-control-size);font-weight:700;line-height:1.2;transition:background .16s ease,border-color .16s ease}
+.nb-action-btn:hover,.nb-mode-pill:hover,.nb-mode-pill.active,.nb-action-btn.active{background:#356f94}
+.nb-action-btn:disabled,.nb-mode-pill:disabled{opacity:.45;cursor:default;background:transparent}
+.nb-action-btn:disabled:hover,.nb-mode-pill:disabled:hover{background:transparent}
+.nb-action-btn.active.hl{background:#f5c84b;border-color:#fff;color:#17212b}
+.nb-action-btn.active.st{background:#f9d8de;border-color:#fff;color:#7d1830}
+.nb-item-picker{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.nb-item-picker label{font-size:calc(var(--ui-meta-size) * 1.02);opacity:.86}
+.nb-item-picker select{min-width:68px;padding:7px 5px;border-radius:3px;border:1px solid rgba(255,255,255,.25);background:#fff;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:var(--ui-control-size)}
+.nb-nav-controls{display:flex;align-items:stretch}
+.nb-nav-btn{min-width:88px;border:0;border-left:1px solid rgba(255,255,255,.22);background:transparent;color:#fff;padding:8px 10px;font-family:Arial,Helvetica,sans-serif;cursor:pointer;transition:background .16s ease}
+.nb-nav-btn:hover{background:#356f94}
+.nb-nav-btn:disabled{opacity:.45;cursor:default;background:transparent}
+.nb-nav-btn .icon{display:block;font-size:1.4rem;margin-bottom:4px}
+.nb-body{min-height:0;display:grid;grid-template-columns:84px minmax(0,1fr);background:#fff;overflow:hidden}
+.nb-rail{min-height:0;display:flex;flex-direction:column;gap:6px;padding:7px 6px;background:#e8edf1;border-right:1px solid #8b969f;overflow:hidden}
+.nb-rail-title{margin:3px 0 1px;color:#35424e;text-align:center;font-size:calc(var(--ui-micro-size) * 1.12);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.nb-rail-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:1px;scrollbar-width:thin;scrollbar-color:#8b969f #dce4ea}
+.nb-rail-scroll::-webkit-scrollbar{width:8px}
+.nb-rail-scroll::-webkit-scrollbar-track{background:#dce4ea;border-radius:999px}
+.nb-rail-scroll::-webkit-scrollbar-thumb{background:#8b969f;border-radius:999px}
+.nb-rail-arrow{display:inline-flex;align-items:center;justify-content:center;width:100%;height:28px;border:1px solid #8d98a1;border-radius:3px;background:#f7fafc;color:#22313d;font-size:.9rem;font-weight:900;cursor:pointer;transition:background .16s ease,border-color .16s ease,color .16s ease}
+.nb-rail-arrow:hover:not(:disabled){background:#d9e5ee;border-color:#647280}
+.nb-rail-arrow:disabled{opacity:.38;cursor:default}
+.nb-rail-btn{width:100%;height:35px;margin-bottom:5px;position:relative;border:1px solid #8d98a1;border-radius:2px;background:#fff;color:#1d2933;font-size:calc(var(--ui-control-size) * 1.06);font-weight:700;cursor:pointer}
+.nb-rail-btn:hover{background:#f4f8fb}
+.nb-rail-btn.current{background:#004976;color:#fff;border-color:#004976}
+.nb-rail-btn.answered::after{content:'';position:absolute;right:4px;bottom:4px;width:7px;height:7px;border-radius:50%;background:#257a43;box-shadow:0 0 0 1px #fff}
+.nb-rail-btn.marked::before{content:'⚑';position:absolute;left:3px;top:1px;color:#bd7400;font-size:.78rem}
+.nb-rail-btn.current.marked::before{color:#ffd75e}
+.nb-stage{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;background:#fff}
+#nbFinishBanner{flex-shrink:0}
+.nb-question-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:26px clamp(24px,6vw,92px) 112px}
+.nb-question-card,.nb-review-wrap{width:min(980px,100%);margin:0 auto}
+.nb-question-card.has-feedback{width:min(1580px,100%)}
+.nb-question-layout{display:grid;gap:24px}
+.nb-question-layout.has-feedback{grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);align-items:start}
+.nb-question-side{min-width:0;align-self:start}
+.nb-question-side .exb{margin-top:0;max-height:calc(var(--app-vh) - clamp(260px,34vh,380px));overflow:auto;overscroll-behavior:contain;scroll-padding-bottom:clamp(88px,12vh,136px);scrollbar-width:thin;scrollbar-color:rgba(18,32,60,.28) rgba(18,32,60,.08)}
+.nb-question-side .exb::-webkit-scrollbar{width:10px}
+.nb-question-side .exb::-webkit-scrollbar-track{background:rgba(18,32,60,.08);border-radius:999px}
+.nb-question-side .exb::-webkit-scrollbar-thumb{background:rgba(18,32,60,.28);border-radius:999px}
+.nb-question-side .exb::after{content:'';display:block;height:clamp(88px,12vh,136px);background:transparent}
+.nb-question-label{margin-bottom:16px;color:#5b6570;font-weight:700;font-size:calc(var(--ui-meta-size) * 1.16);letter-spacing:.02em}
+.nb-question-stem{font-size:calc(var(--stem-size) * .72);line-height:1.58;user-select:text}
+.nb-question-stem mark,.nb-answer-copy mark{background:#fff173;color:inherit;padding:0 1px}
+.nb-question-stem s,.nb-answer-copy s{color:#717a82;text-decoration:line-through}
+.nb-stage-note{margin-top:18px;color:#5b6570;font-size:calc(var(--ui-meta-size) * 1.12);line-height:1.5}
+.nb-answers{margin-top:24px;display:grid;gap:11px}
+.nb-answer-row{display:grid;grid-template-columns:32px 1fr;align-items:start;gap:9px;padding:8px 9px;border:1px solid transparent;border-radius:3px;cursor:pointer;transition:background .16s ease,border-color .16s ease}
+.nb-answer-row:hover{background:#f3f7fa;border-color:#d7e0e7}
+.nb-answer-row.selected{background:#d9ebf7;border-color:#7fa9c4}
+.nb-answer-row.correct{background:#dff2e5;border-color:#4d9b68}
+.nb-answer-row.incorrect{background:#f8dfe2;border-color:#bd6570}
+.nb-answer-row.locked{cursor:default}
+.nb-answer-glyph{width:24px;height:24px;border:1px solid #8d98a1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:calc(var(--ui-control-size) * 1.05);font-weight:700;background:#fff;color:#1d2933;margin-top:1px}
+.nb-answer-row.selected .nb-answer-glyph{background:#004976;border-color:#004976;color:#fff}
+.nb-answer-row.correct .nb-answer-glyph{background:#257a43;border-color:#257a43;color:#fff}
+.nb-answer-row.incorrect .nb-answer-glyph{background:#a51d2d;border-color:#a51d2d;color:#fff}
+.nb-answer-copy{font-size:calc(var(--choice-size) * 1.02);line-height:1.52;user-select:text}
+.nb-submit-row{margin-top:24px}
+.nb-submit-btn{min-width:165px;padding:10px 18px;border:1px solid #003653;border-radius:3px;background:#004976;color:#fff;font-weight:700;font-family:Arial,Helvetica,sans-serif;cursor:pointer}
+.nb-submit-btn:disabled{opacity:.55;cursor:default}
+.nb-review-wrap h2{color:#004976;font-size:1.55rem;font-family:Arial,Helvetica,sans-serif}
+.nb-review-wrap p{font-size:calc(var(--choice-size) * .95);line-height:1.5;color:#33404a}
+.nb-review-summary{display:flex;flex-wrap:wrap;gap:14px;margin:16px 0 24px}
+.nb-summary-chip{min-width:145px;padding:12px 15px;border:1px solid #aeb8c0;border-radius:3px;background:#f3f6f8}
+.nb-summary-chip strong{display:block;margin-top:5px;font-size:calc(var(--ui-title-size) * .82);color:#004976}
+.nb-review-table{width:100%;border-collapse:collapse}
+.nb-review-table th,.nb-review-table td{padding:11px;border:1px solid #aeb8c0;text-align:left;font-size:calc(var(--choice-size) * .9)}
+.nb-review-table th{background:#004976;color:#fff}
+.nb-review-table tr:nth-child(even){background:#f3f6f8}
+.nb-review-jump{color:#004976;text-decoration:underline;border:0;background:transparent;font-weight:700;padding:0;cursor:pointer}
+.nb-review-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.nb-review-back{padding:10px 16px;border:1px solid #8d99a3;border-radius:3px;background:#f3f5f7;color:#17212b;font-weight:700;cursor:pointer}
+.nb-footer{min-height:72px;display:grid;grid-template-columns:auto 1fr auto;align-items:stretch;border-top:3px solid #003653}
+.nb-timer-box{min-width:245px;display:grid;grid-template-columns:1fr auto;gap:4px 14px;align-content:center;padding:10px 18px;border-right:1px solid rgba(255,255,255,.28);font-variant-numeric:tabular-nums}
+.nb-timer-box strong{text-align:right}
+.nb-timer-box small{grid-column:1 / -1;text-align:center;opacity:.82;font-size:.68rem}
+.nb-timer-actions{grid-column:1 / -1;display:flex;gap:8px;justify-content:center;margin-top:2px}
+.nb-timer-mini{padding:7px 12px;border:1px solid rgba(255,255,255,.75);border-radius:3px;background:transparent;color:#fff;font-weight:700;cursor:pointer}
+.nb-timer-mini:hover{background:#356f94}
+.nb-timer-box.warn strong{color:#ffd45b}
+.nb-footer-center{display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 12px;flex-wrap:wrap}
+.nb-score-chip{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid rgba(255,255,255,.2);border-radius:3px;background:rgba(255,255,255,.08);font-size:calc(var(--ui-control-size) * .98)}
+.nb-score-chip span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.nb-score-chip strong{font-size:calc(var(--ui-control-size) * 1.16)}
+.nb-font-cluster{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid rgba(255,255,255,.2);border-radius:3px;background:rgba(255,255,255,.08)}
+.nb-font-cluster label{font-size:calc(var(--ui-meta-size) * 1.02);font-weight:700}
+.nb-font-btn{padding:7px 10px;border:1px solid rgba(255,255,255,.72);border-radius:3px;background:transparent;color:#fff;font-size:var(--ui-control-size);font-weight:700;cursor:pointer}
+.nb-font-btn:hover{background:#356f94}
+.nb-footer-tool{padding:8px 12px;border:1px solid rgba(255,255,255,.72);border-radius:3px;background:rgba(255,255,255,.08);color:#fff;font-size:var(--ui-control-size);font-weight:700;cursor:pointer;font-family:Arial,Helvetica,sans-serif}
+.nb-footer-tool:hover{background:#356f94}
+.nb-end-wrap{display:flex;align-items:center;padding:10px 13px}
+.nb-end-btn{padding:0 20px;min-height:44px;border:1px solid rgba(255,255,255,.8);border-radius:3px;background:#7d1830;color:#fff;font-size:var(--ui-control-size);font-weight:700;cursor:pointer}
+.nb-end-btn:hover:not(:disabled){background:#a82745}
+.nb-end-btn:disabled{opacity:.45;cursor:default;background:rgba(255,255,255,.14)}
+
+/* Lab values */
+.lab-modal{position:fixed;inset:0;z-index:1200;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(9,17,28,.58);backdrop-filter:blur(9px)}
+.lab-modal.open{display:flex}
+.lab-shell{width:min(1100px,96vw);max-height:92vh}
+.lab-card{display:flex;flex-direction:column;max-height:92vh;border-radius:26px;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(246,243,236,.98));border:1px solid rgba(18,32,60,.08);box-shadow:0 28px 80px rgba(0,0,0,.22);overflow:hidden}
+.lab-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:22px 24px 18px;border-bottom:1px solid rgba(18,32,60,.08)}
+.lab-kicker{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:var(--mist);margin-bottom:8px}
+.lab-title{font-family:'Crimson Pro',serif;font-size:calc(var(--stem-size) * 1.08);line-height:1.02;color:var(--navy);margin:0 0 8px}
+.lab-sub{font-size:calc(var(--choice-size) * .92);line-height:1.6;color:var(--slate);max-width:68ch}
+.lab-close{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border-radius:14px;border:1px solid rgba(18,32,60,.12);background:#fff;color:var(--navy);font-family:'Nunito',sans-serif;font-size:14px;font-weight:900;cursor:pointer;transition:var(--tr)}
+.lab-close:hover{transform:translateY(-1px);border-color:rgba(26,122,109,.34);color:var(--teal)}
+.lab-controls{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:16px 24px;border-bottom:1px solid rgba(18,32,60,.08);background:rgba(255,255,255,.72)}
+.lab-toggle{display:inline-flex;gap:8px;padding:6px;border-radius:999px;background:rgba(18,32,60,.05)}
+.lab-toggle-btn{padding:10px 16px;border:none;border-radius:999px;background:transparent;color:var(--slate);font-family:'Nunito',sans-serif;font-size:calc(var(--choice-size) * .86);font-weight:900;cursor:pointer;transition:var(--tr)}
+.lab-toggle-btn.active{background:linear-gradient(135deg,var(--navy),#2A3562);color:#fff;box-shadow:0 10px 22px rgba(27,42,74,.16)}
+.lab-note{font-size:calc(var(--choice-size) * .78);line-height:1.6;color:var(--mist)}
+.lab-body{padding:18px 24px 24px;overflow:auto}
+.lab-table{width:100%;margin-bottom:18px;border-collapse:collapse;font-size:calc(var(--choice-size) * .92);background:#fff}
+.lab-table thead th{padding:9px 10px;background:#dbe6ed;border:1px solid #9eabb4;text-align:left}
+.lab-table thead th:first-child{width:48%}
+.lab-table tbody td{padding:6px 9px;border:1px solid #c6cdd3;text-align:left;vertical-align:top}
+.lab-table tbody tr:nth-child(even):not(.lab-group){background:#f6f8f9}
+.lab-table .lab-group td{padding:8px 9px;background:#edf1f4;font-weight:700}
+.lab-table .continuation{color:transparent}
+
+/* finish overlay */
+.fin{position:relative;background:linear-gradient(135deg,var(--navy),#2A3562);border-radius:24px;padding:22px 24px;text-align:center;color:#fff;box-shadow:var(--sh3);margin:0 auto 14px;max-width:min(780px,100%);transition:padding .2s ease,box-shadow .2s ease}
+.fin.min{padding:56px 24px 22px}
+.fin-toggle{position:absolute;top:14px;left:14px;display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:34px;padding:0 12px;border-radius:12px;border:1.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.04);color:rgba(255,255,255,.86);font-family:'Nunito',sans-serif;font-size:18px;font-weight:900;cursor:pointer;transition:all .18s}
+.fin-toggle:hover{background:rgba(255,255,255,.12);color:#fff}
+.fin-main{display:grid;justify-items:center}
+.fin-pct{font-family:'IBM Plex Mono',monospace;font-size:46px;font-weight:700;color:var(--teal-glow);line-height:1}
+.fin-pct-lbl{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.45);margin:4px 0 14px}
+.fin-msg{font-family:'Crimson Pro',serif;font-size:24px;font-weight:700;margin-bottom:6px}
+.fin-sub{font-size:13px;color:rgba(255,255,255,.6);margin-bottom:18px}
+.fin-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.fin-btn{padding:10px 16px;border-radius:12px;border:1.5px solid rgba(255,255,255,.25);background:transparent;color:rgba(255,255,255,.8);font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;cursor:pointer;transition:all .18s}
+.fin-btn:hover{background:rgba(255,255,255,.12);color:#fff}
+
+/* final review sheet */
+.sum-sheet{margin-top:18px;background:rgba(255,255,255,.96);border:1px solid rgba(18,32,60,.08);border-radius:28px;box-shadow:var(--sh3);overflow:hidden;scroll-margin-top:20px}
+.sum-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:26px 28px 22px;border-bottom:1px solid rgba(18,32,60,.08);background:linear-gradient(180deg,color-mix(in srgb,var(--warm) 48%,transparent),#fff)}
+.sum-kicker{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:var(--mist);margin-bottom:8px}
+.sum-title{font-family:'Crimson Pro',serif;font-size:34px;line-height:1.02;color:var(--navy);margin:0 0 8px}
+.sum-sub{font-size:14px;line-height:1.6;color:var(--slate);max-width:66ch}
+.sum-actions{display:flex;gap:10px;flex-wrap:wrap}
+.sum-btn{padding:11px 16px;border-radius:14px;border:1.5px solid rgba(18,32,60,.12);background:#fff;color:var(--navy);font-family:'Nunito',sans-serif;font-size:14px;font-weight:900;cursor:pointer;transition:var(--tr);white-space:nowrap}
+.sum-btn:hover{transform:translateY(-1px);border-color:rgba(26,122,109,.34);color:var(--teal)}
+.sum-btn.primary{background:linear-gradient(135deg,var(--teal),var(--teal-mid));border-color:transparent;color:#fff;box-shadow:0 10px 24px rgba(26,122,109,.2)}
+.sum-btn.primary:hover{color:#fff;box-shadow:0 14px 28px rgba(26,122,109,.26)}
+.sum-stats{display:flex;gap:12px;flex-wrap:wrap;padding:18px 28px;border-bottom:1px solid rgba(18,32,60,.08);background:rgba(246,243,236,.72)}
+.sum-stat{min-width:150px;padding:14px 16px;border-radius:18px;border:1px solid rgba(18,32,60,.08);background:#fff;box-shadow:0 8px 20px rgba(18,32,60,.05)}
+.sum-stat-label{font-size:10px;font-weight:900;letter-spacing:1.6px;text-transform:uppercase;color:var(--mist);margin-bottom:8px}
+.sum-stat-value{font-family:'Crimson Pro',serif;font-size:32px;line-height:1;color:var(--navy)}
+.sum-list{display:grid;gap:14px;padding:22px 24px 26px}
+.sum-item{display:grid;grid-template-columns:150px minmax(0,1fr);gap:18px;padding:20px;border-radius:22px;border:1px solid rgba(18,32,60,.08);background:#fff;box-shadow:0 8px 22px rgba(18,32,60,.05)}
+.sum-item.correct{border-color:rgba(45,134,89,.24);background:linear-gradient(180deg,#fff,#f6fcf8)}
+.sum-item.incorrect{border-color:rgba(196,64,64,.18);background:linear-gradient(180deg,#fff,#fff8f8)}
+.sum-item.unanswered{border-color:rgba(192,123,26,.24);background:linear-gradient(180deg,#fff,#fffaf1)}
+.sum-meta{display:flex;flex-direction:column;gap:10px}
+.sum-num{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 16px;border-radius:999px;background:rgba(18,32,60,.06);font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--navy);width:max-content}
+.sum-state{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 14px;border-radius:999px;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;width:max-content}
+.sum-item.correct .sum-state{background:var(--green-bg);color:var(--green)}
+.sum-item.incorrect .sum-state{background:var(--red-bg);color:var(--red)}
+.sum-item.unanswered .sum-state{background:var(--amber-bg);color:var(--amber)}
+.sum-answer{font-size:13px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+.sum-body{display:grid;gap:14px}
+.sum-section{padding:16px 18px;border-radius:18px;border:1px solid rgba(18,32,60,.06);background:rgba(246,243,236,.56)}
+.sum-label{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:800;letter-spacing:1.7px;text-transform:uppercase;color:var(--mist);margin-bottom:9px}
+.sum-text{font-size:calc(var(--choice-size) * .97);line-height:1.65;color:var(--ink2)}
+.sum-view{display:grid;gap:18px}
+
+/* responsive */
+@media(max-width:820px){
+  .qin{grid-template-columns:1fr;padding:16px 14px 64px}
+  .sidebar{position:static;flex-direction:row;flex-wrap:wrap}
+  .score-panel{flex:1 1 200px}
+  .mode-toggle,.tool-panel{flex:1 1 100%}
+  .timer-card{flex:1 1 160px}
+  .q-review-grid.has-feedback,.nb-question-layout.has-feedback{grid-template-columns:1fr}
+  .q-feedback .exb,.nb-question-side .exb{max-height:none;overflow:visible}
+  .nb-header{grid-template-columns:1fr}
+  .nb-status-box{border-right:none;border-bottom:1px solid rgba(255,255,255,.2)}
+  .nb-nav-controls{border-top:1px solid rgba(255,255,255,.18)}
+  .nb-nav-btn{flex:1}
+  .nb-body{grid-template-columns:1fr}
+  .nb-rail{display:none}
+  .nb-footer{grid-template-columns:1fr}
+  .nb-timer-box{border-right:none;border-bottom:1px solid rgba(255,255,255,.18)}
+  .nb-end-wrap{justify-content:center}
+  .setup-ui-toggle{grid-template-columns:1fr}
+}
+@media(max-width:480px){.qbd{padding:20px 16px}.qstem{font-size:max(21px,var(--stem-size))}.qnv{flex-direction:column;padding:14px 16px 18px}.nb{width:100%}.font-tools{flex-direction:column;align-items:stretch}.font-tools-group{margin-left:0;justify-content:space-between}.sum-head{padding:22px 18px 18px;flex-direction:column}.sum-title{font-size:28px}.sum-stats{padding:16px 18px}.sum-list{padding:18px 16px 22px}.sum-item{grid-template-columns:1fr;padding:16px}}
+@media(max-width:560px){.setup-actions{flex-direction:column}.qt-bar{height:auto;flex-wrap:wrap;padding:12px 16px}.nb-util{flex-direction:column;align-items:flex-start}}
+
+/* toast */
+.toast-wrap{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:999;pointer-events:none}
+.toast{padding:11px 20px;border-radius:999px;font-size:13.5px;font-weight:700;box-shadow:0 8px 28px rgba(0,0,0,.15);animation:toastIn .28s cubic-bezier(.2,.8,.2,1) both;white-space:nowrap}
+@keyframes toastIn{from{opacity:0;transform:translateY(14px) scale(.94)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(8px) scale(.95)}}
+.toast.ok{background:var(--navy);color:var(--teal-glow)}.toast.err{background:var(--red);color:#fff}
+#noteAuthGate{display:none}
+html[data-note-auth="locked"] body{
+  min-height:100vh;
+  overflow:hidden;
+  background:#f4f5f7;
+  color:#1f2937;
+}
+html[data-note-auth="locked"] body>*:not(#noteAuthGate){display:none!important}
+html[data-note-auth="locked"] #noteAuthGate{
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+  background:linear-gradient(135deg,#f4f5f7,#ffffff 52%,#eef2f7);
+}
+.note-auth-card{
+  width:min(460px,100%);
+  padding:30px;
+  border:1px solid rgba(31,41,55,.14);
+  border-radius:14px;
+  background:rgba(255,255,255,.94);
+  box-shadow:0 22px 70px rgba(31,41,55,.16);
+  text-align:center;
+}
+.note-auth-kicker{
+  font-family:var(--mono,'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace);
+  font-size:.68rem;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:#cf4520;
+  font-weight:700;
+  margin-bottom:12px;
+}
+.note-auth-card h1{
+  margin:0 0 12px;
+  font-family:var(--disp,'Crimson Pro',Georgia,'Times New Roman',serif);
+  font-size:clamp(2rem,6vw,3rem);
+  line-height:.98;
+  color:#263241;
+}
+.note-auth-card p{
+  margin:0 0 22px;
+  font-size:1rem;
+  line-height:1.55;
+  color:#556070;
+}
+.note-auth-btn{
+  border:0;
+  border-radius:999px;
+  padding:12px 20px;
+  font:800 .9rem var(--body,'Nunito',-apple-system,'Segoe UI',Roboto,Arial,sans-serif);
+  color:#fff;
+  background:#263241;
+  cursor:pointer;
+  box-shadow:0 12px 28px rgba(38,50,65,.22);
+}
+.note-auth-btn:hover{background:#cf4520}
+</style>
+</head>
+<body>
+<div id="noteAuthGate" role="dialog" aria-modal="true" aria-labelledby="noteAuthTitle">
+  <div class="note-auth-card">
+    <div class="note-auth-kicker">2nd Year Study Hub</div>
+    <h1 id="noteAuthTitle">Please log in to continue with this note.</h1>
+    <p>Open the Study Hub login, enter your approved UNE email, and this note will unlock automatically.</p>
+    <button class="note-auth-btn" type="button" onclick="openNoteLogin()">Log in to continue</button>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<!-- ══════════ SETUP VIEW ══════════ -->
+<div class="view active" id="viewSetup">
+<div class="setup-page">
+<div class="setup-card">
+
+  <div class="setup-top">
+    <div class="setup-emoji">🧪</div>
+    <div class="setup-title">Custom <em>Quiz Builder</em></div>
+    <div class="setup-sub">Generate a quiz from any AI and run it in the same exam format as the study hub.</div>
+  </div>
+
+  <div class="setup-body">
+    <div class="how-title">How it works</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <strong>Copy the prompt below</strong>
+          Paste it into ChatGPT, Claude, Gemini, or any AI — then add your notes or questions after it and send.
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          <strong>Copy the AI's response</strong>
+          It will return a formatted list of questions. Copy the whole thing.
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          <strong>Paste it below and launch</strong>
+          Hit Launch and the quiz opens immediately in the full exam UI.
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="lbl">Target question count</label>
+      <input class="inp" id="questionCount" type="number" min="1" max="25" step="1" value="15" oninput="handleQuestionCountInput()" onblur="handleQuestionCountBlur()">
+      <div class="field-note">Cap: 25 questions. Increasing the number of questions may cause degraded question quality from your AI.</div>
+    </div>
+
+    <!-- Prompt to copy -->
+    <div class="lbl" style="margin-bottom:8px">Your AI prompt</div>
+    <div class="prompt-wrap">
+      <button class="copy-prompt-btn" id="copyPromptBtn" onclick="copyPrompt()">📋 Copy prompt</button>
+      <div class="prompt-inner" id="promptText">You are a medical school professor writing exam-style questions. You have TWO modes:
+
+MODE 1 — GENERATE: If I give you notes or lecture content, write quiz questions from it.
+MODE 2 — CONVERT: If I give you already-written questions in any format, convert them into the format below without changing the medical content.
+
+Output ONLY a raw JSON object — no markdown, no backticks, no explanation.
+
+{
+  "name": "Concise quiz title here",
+  "questions": [
+    {
+      "stem": "Question text here?",
+      "choices": [
+        "A. Correct answer — stay true to the diction of the professor",
+        "B. Wrong answer — make relevant with plausible detail",
+        "C. Wrong answer — make relevant with plausible detail",
+        "D. Wrong answer — make relevant with plausible detail",
+        "E. Wrong answer — make relevant with plausible detail"
+      ],
+      "correct": 0,
+      "explanation": "Why the correct answer is right. Use arrows (→) to show mechanisms.",
+      "wrongExplanations": {
+        "1": "Why B is wrong — be specific.",
+        "2": "Why C is wrong — be specific.",
+        "3": "Why D is wrong — be specific.",
+        "4": "Why E is wrong — be specific."
+      },
+      "eli5": "Explain the concept like the student is 10. Max 3 sentences."
+    }
+  ]
+}
+
+Rules:
+- Return exactly 15 questions in the top-level "questions" array
+- Include a top-level "name" for the quiz
+- If the setup name field is blank, infer a concise quiz title from the content
+- "correct" is a NUMBER (0=A, 1=B, 2=C, 3=D, 4=E)
+- Include a wrong explanation for every wrong choice
+- Prefer using the actual choice index as the key, so if A is wrong use "0", if B is wrong use "1", etc.
+- Vary which letter is correct — don't always use 0
+- If converting questions with fewer than 5 choices, add distractors to reach 5
+- Keep all answer choices similar in length so the correct answer is not guessable by length
+- Output ONLY the JSON object
+
+Professor-style writing notes:
+- Each vignette should usually follow this rhythm:
+  Age/sex/setting + chief complaint
+  1-2 sentences of relevant history, risk factors, or timeline
+  2-4 physical exam findings written like a clipped checklist
+  The final ask should test mechanism, localization, genetics, downstream consequence, or next step, not just the diagnosis alone
+- The diagnosis should usually be inferable from the exam checklist alone by pattern recognition, but the actual question should ask one rung higher
+- Distractors must come from the same answer category as the correct answer
+  Example: artery vs. other arteries, gene vs. other genes, nerve root vs. adjacent nerve roots, dementia subtype vs. other dementia subtypes
+- When appropriate, prefer 2-3 stacked questions built from the same clinical stem
+  Example chain: presentation -&gt; diagnosis -&gt; localization/genetics -&gt; mechanism -&gt; treatment
+- High-yield domains to emphasize:
+  UMN vs LMN vs NMJ vs myopathy localization by pattern
+  Exact genetics such as chromosome, repeat type, and gene name
+  Vascular localization, especially Circle of Willis style anatomy
+  Mechanism-of-injury to nerve or plexus localization
+  CSF profile pattern recognition
+  Vignette-to-histopathology pairing
+- Reuse high-yield concepts with slight vignette variations when the same theme is strongly emphasized in the source material
+- Keep the stem voice like a real med school professor:
+  clipped exam findings, subtle pattern-recognition clues, no giveaway diagnosis wording, occasional grounded real-world detail if it helps the vignette feel authentic
+
+MY CONTENT:
+</div>
+    </div>
+    <p style="font-size:12px;color:var(--mist);margin-bottom:24px;margin-top:6px">Paste your notes or existing questions <em>after</em> this prompt before sending to your AI.</p>
+
+    <div class="divider"></div>
+
+    <div class="field">
+      <label class="lbl">Quiz name (optional)</label>
+      <input class="inp" id="quizName" placeholder="e.g. Ferland — Confidence Intervals — Bank 1" oninput="refreshPromptText()">
+    </div>
+    <div class="field">
+      <label class="lbl">Quiz interface</label>
+      <div class="setup-ui-toggle">
+        <button class="setup-ui-btn active" id="uiModeClassicBtn" type="button" onclick="selectLaunchUI('classic')">
+          <span class="setup-ui-name">UNE Study Hub Style</span>
+          <span class="setup-ui-meta">The current layout with score cards, sidebar tools, and the original study-hub feel.</span>
+        </button>
+        <button class="setup-ui-btn" id="uiModeNbmeBtn" type="button" onclick="selectLaunchUI('nbme')">
+          <span class="setup-ui-name">NBME / NBOME Style</span>
+          <span class="setup-ui-meta">Header navigation, question rail, footer timer, and an exam-stage layout modeled after the simulator.</span>
+        </button>
+      </div>
+    </div>
+    <div class="field">
+      <label class="lbl">Paste AI response here</label>
+      <textarea class="ta" id="pasteArea" placeholder="Paste the AI's response here and hit Launch…"></textarea>
+    </div>
+    <div class="setup-actions">
+      <button class="launch-btn" onclick="launchQuiz()">🚀 Launch Quiz</button>
+      <button class="ghost-btn" onclick="downloadQuiz()">⬇ Download My Quiz</button>
+    </div>
+    <div class="err-msg" id="errMsg"></div>
+  </div>
+
+</div>
+</div>
+</div>
+
+<!-- ══════════ QUIZ VIEW ══════════ -->
+<div class="view" id="viewQuiz">
+<div class="quiz-page">
+
+  <!-- top bar -->
+  <div class="qt-bar">
+    <div class="qt-name" id="qtName">Quiz</div>
+    <button class="qt-btn" id="qtClassicUiBtn" onclick="switchQuizUI('nbme')">⇄ NBME UI</button>
+    <button class="qt-btn" id="qtMarkBtn" onclick="toggleMark()">⚑ Mark</button>
+    <button class="qt-btn" id="qtSubmitBtn" onclick="submitExam()">🧾 Submit Exam</button>
+    <button class="qt-btn" onclick="downloadQuiz()">⬇ Download Quiz</button>
+    <button class="qt-btn" onclick="resetQuiz()">↺ Reset</button>
+    <button class="qt-btn" onclick="exitQuiz()">✕ Close</button>
+  </div>
+
+  <!-- grid -->
+  <div class="qin">
+
+    <!-- LEFT SIDEBAR -->
+    <div class="sidebar">
+
+      <!-- score boxes -->
+      <div class="score-panel">
+        <div class="score-box correct"><div class="sv" id="sC">0</div><div class="sl">Correct</div></div>
+        <div class="score-box incorrect"><div class="sv" id="sI">0</div><div class="sl">Incorrect</div></div>
+        <div class="score-box"><div class="sv" id="sP">—</div><div class="sl">Score</div></div>
+      </div>
+
+      <!-- mode toggle -->
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="modeLearn" onclick="setMode('learn')"><span class="mode-icon">📚</span>Learn Mode</button>
+        <button class="mode-btn" id="modeExam" onclick="setMode('exam')"><span class="mode-icon">📝</span>Exam Mode</button>
+      </div>
+
+      <!-- timer -->
+      <div class="timer-card" id="timerCard">
+        <div class="timer-lbl">TIMER</div>
+        <div class="timer-time" id="timerTime">00:00</div>
+        <button class="tbtn" id="timerPlayBtn" onclick="toggleTimer()">▶</button>
+        <button class="tbtn" onclick="resetTimer()">↺</button>
+      </div>
+
+      <!-- tools -->
+      <div class="tool-panel">
+        <button class="q-tool hl-tool" id="hlTool" onclick="toggleTool('hl')">🖊 Highlight</button>
+        <button class="q-tool st-tool" id="stTool" onclick="toggleTool('st')">✂ Strikethrough</button>
+        <button class="q-tool" onclick="clearMarks()">✖ Clear Marks</button>
+        <button class="q-tool lab-tool" onclick="openLabs()">🧪 Lab Values</button>
+        <div class="font-tools">
+          <span class="font-tools-label">Text Size</span>
+          <div class="font-tools-group">
+            <button class="font-btn" onclick="adjustFontSize(-1)" aria-label="Decrease question and answer text size">A-</button>
+            <button class="font-btn reset" onclick="resetFontSize()" aria-label="Reset question and answer text size">A</button>
+            <button class="font-btn" onclick="adjustFontSize(1)" aria-label="Increase question and answer text size">A+</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: QUESTION -->
+    <div>
+      <div id="finBanner"></div>
+      <div id="qArea"></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ══════════ NBME / NBOME VIEW ══════════ -->
+<div class="view" id="viewQuizNbme">
+<div class="nb-wrap">
+  <div class="nb-util">
+    <div class="nb-util-name" id="nbQuizTitle">Quiz</div>
+    <div class="nb-util-actions">
+      <button class="nb-util-btn" onclick="switchQuizUI('classic')">UNE UI</button>
+      <button class="nb-util-btn" onclick="downloadQuiz()">Download</button>
+      <button class="nb-util-btn" onclick="resetQuiz()">Reset</button>
+      <button class="nb-util-btn" onclick="exitQuiz()">Close</button>
+    </div>
+  </div>
+
+  <div class="nb-app">
+    <header class="nb-header">
+      <div class="nb-status-box">
+        <strong id="nbItemIndicator">Question: 1 of 1</strong>
+        <span id="nbStatusMeta">Answered 0 of 1</span>
+      </div>
+
+      <div class="nb-header-center">
+        <button class="nb-action-btn" id="nbMarkBtn" type="button" onclick="toggleMark()">⚑ Mark</button>
+        <button class="nb-action-btn" id="nbHighlightBtn" type="button" onclick="toggleTool('hl')">Highlight</button>
+        <button class="nb-action-btn" id="nbStrikeBtn" type="button" onclick="toggleTool('st')">Strikeout</button>
+        <button class="nb-action-btn" type="button" onclick="clearMarks()">Clear</button>
+        <button class="nb-mode-pill active" id="nbModeLearn" type="button" onclick="setMode('learn')">Learn</button>
+        <button class="nb-mode-pill" id="nbModeExam" type="button" onclick="setMode('exam')">Testing</button>
+        <button class="nb-action-btn" id="nbSummaryBtn" type="button" onclick="toggleSummaryPanel()" disabled="">See Score &amp; Summary</button>
+        <div class="nb-item-picker">
+          <label for="nbItemSelect">Question</label>
+          <select id="nbItemSelect" aria-label="Jump to a question" onchange="goQ(parseInt(this.value,10))"></select>
+        </div>
+      </div>
+
+      <div class="nb-nav-controls">
+        <button class="nb-nav-btn" id="nbPrevBtn" type="button" onclick="prevQ()">
+          <span class="icon">◀</span><span>Previous</span>
+        </button>
+        <button class="nb-nav-btn" id="nbNextBtn" type="button" onclick="nextQ()">
+          <span class="icon">▶</span><span>Next</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="nb-body">
+      <aside class="nb-rail" aria-label="Question navigator">
+        <div class="nb-rail-title">Questions</div>
+        <button class="nb-rail-arrow" id="nbRailUpBtn" type="button" aria-label="Scroll question list up" onclick="scrollNbmeRail(-1)">▲</button>
+        <div class="nb-rail-scroll" id="nbRailScroll" onscroll="syncNbmeRailArrows()">
+          <div id="nbRailItems"></div>
+        </div>
+        <button class="nb-rail-arrow" id="nbRailDownBtn" type="button" aria-label="Scroll question list down" onclick="scrollNbmeRail(1)">▼</button>
+      </aside>
+
+      <section class="nb-stage">
+        <div id="nbFinishBanner"></div>
+        <div class="nb-question-scroll">
+          <div id="nbContent"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="nb-footer">
+      <div class="nb-timer-box" id="nbTimerCard">
+        <span>Elapsed Time:</span><strong id="nbTimerTime">00:00</strong>
+        <span>Status:</span><strong id="nbTimerStatus">Paused</strong>
+        <small>Same timer as the original interface</small>
+        <div class="nb-timer-actions">
+          <button class="nb-timer-mini" id="nbTimerToggle" type="button" onclick="toggleTimer()">Start</button>
+          <button class="nb-timer-mini" type="button" onclick="resetTimer()">Reset</button>
+        </div>
+      </div>
+
+      <div class="nb-footer-center">
+        <div class="nb-score-chip">
+          <span>Correct <strong id="nbScoreCorrect">0</strong></span>
+          <span>Incorrect <strong id="nbScoreIncorrect">0</strong></span>
+          <span>Score <strong id="nbScorePercent">—</strong></span>
+        </div>
+        <button class="nb-footer-tool" type="button" onclick="openLabs()">▤ Lab Values</button>
+        <div class="nb-font-cluster">
+          <label>Text</label>
+          <button class="nb-font-btn" type="button" onclick="adjustFontSize(-1)">A-</button>
+          <button class="nb-font-btn" type="button" onclick="resetFontSize()">A</button>
+          <button class="nb-font-btn" type="button" onclick="adjustFontSize(1)">A+</button>
+        </div>
+      </div>
+
+      <div class="nb-end-wrap">
+        <button class="nb-end-btn" id="nbReviewBtn" type="button" onclick="handleNbmeEndAction()">Testing Mode Only</button>
+      </div>
+    </footer>
+  </div>
+</div>
+</div>
+
+<div class="lab-modal" id="labModal" onclick="if(event.target===this)closeLabs()">
+  <div class="lab-shell">
+    <div class="lab-card">
+      <div class="lab-header">
+        <div>
+          <div class="lab-kicker">Reference Table</div>
+          <h2 class="lab-title">Laboratory Values</h2>
+          <div class="lab-sub">Shared lab reference for both quiz interfaces, imported from the NBME-style simulator so the values stay consistent.</div>
+        </div>
+        <button class="lab-close" type="button" onclick="closeLabs()">Close</button>
+      </div>
+      <div class="lab-controls">
+        <div class="lab-toggle">
+          <button class="lab-toggle-btn active" id="labUnitsUs" type="button" onclick="setLabUnits('us')">U.S. Units</button>
+          <button class="lab-toggle-btn" id="labUnitsSi" type="button" onclick="setLabUnits('si')">SI Units</button>
+        </div>
+        <div class="lab-note">Switch units without leaving the question.</div>
+      </div>
+      <div class="lab-body">
+        <div id="labTables"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──
+var questions=[],answers={},selected={},marked={},stemMarkup={},choiceMarkup={},NC=0,NI=0,CQ=0;
+var quizMode='learn';
+var uiMode='classic';
+var examSubmitted=false;
+var reviewOpen=false;
+var summaryVisible=false;
+var finishBannerMinimized=false;
+var toolMode='';
+var labUnitMode='us';
+var timerSec=0,timerRunning=false,timerInterval=null;
+var fontStep=0;
+var LETTERS=['A','B','C','D','E'];
+var PRELOADED_QUIZ_NAME="Custom Quiz";
+var PRELOADED_QUESTIONS_JSON="[{\"stem\":\"A 79-year-old man in Kittery is diagnosed with Alzheimer disease with no family history of early-onset disease. His genetic risk is most strongly influenced by an allele of which gene?\",\"choices\":[\"C. APP\",\"E. MAPT\",\"B. PSEN2\",\"A. PSEN1\",\"D. APOE\"],\"correct\":4,\"explanation\":\"Late-onset AD (the vast majority of cases) is linked to the apolipoprotein E gene -> the APOE*4 allele accelerates amyloid deposition and is the dominant genetic risk factor in this age group.\",\"wrongExplanations\":{\"0\":\"APP (chromosome 21) mutations cause early-onset disease and are the substrate the secretases cleave, not the late-onset risk gene.\",\"1\":\"MAPT encodes tau; tau pathology is downstream, not the gene driving late-onset genetic risk.\",\"2\":\"PSEN2 (chromosome 1) is also an early-onset gene, tied to familial disease before age 65.\",\"3\":\"PSEN1 (chromosome 14) is an early-onset gene, not the late-onset risk allele.\"},\"eli5\":\"Some genes cause early Alzheimer's if inherited wrong, but most people get it later in life, and one version of the APOE gene makes that much more likely.\"},{\"stem\":\"A researcher is studying why carriers of the APOE*4 allele develop Alzheimer disease at higher rates than noncarriers. This allele most directly accelerates which process?\",\"choices\":[\"C. Loss of nicotinic cholinergic receptors\",\"E. Cerebral small-vessel inflammation\",\"D. Glutamate-mediated excitotoxicity\",\"B. Hyperphosphorylation of tau protein\",\"A. Deposition of amyloid plaques\"],\"correct\":4,\"explanation\":\"APOE*4 -> accelerated deposition of amyloid -> this directly links the strongest genetic risk factor to the amyloid cascade, the first domino in the pathophysiologic sequence.\",\"wrongExplanations\":{\"0\":\"Nicotinic receptor loss belongs to the cholinergic hypothesis, a separate pathway from the APOE4-amyloid link.\",\"1\":\"Vascular inflammation is a contributing process but not the mechanism specifically attributed to APOE*4.\",\"2\":\"Glutamate excitotoxicity is the third hypothesis (memantine's target), not tied to APOE*4 in this lecture.\",\"3\":\"Tau hyperphosphorylation is downstream of the amyloid cascade, not the process APOE*4 directly accelerates.\"},\"eli5\":\"APOE*4 makes sticky amyloid clumps build up faster in the brain, and those clumps kick off the whole disease process.\"},{\"stem\":\"Postmortem exam of a patient with progressive dementia reveals extracellular deposits of beta-amyloid, and separately, intracellular deposits of hyperphosphorylated tau. The extracellular finding corresponds to which structure?\",\"choices\":[\"C. Neurofibrillary tangles\",\"B. Amyloid plaques\",\"D. Pick bodies\",\"E. Spongiform vacuoles\",\"A. Lewy bodies\"],\"correct\":1,\"explanation\":\"Amyloid plaques form between neurons (extracellular) and are composed of beta-amyloid -> this location and composition distinguish them from the intracellular tau tangles in the same vignette.\",\"wrongExplanations\":{\"0\":\"Neurofibrillary tangles are the intracellular tau deposits described separately in the vignette.\",\"2\":\"Pick bodies are intracellular tau inclusions of frontotemporal dementia, not the extracellular finding.\",\"3\":\"Spongiform vacuoles are the histologic hallmark of prion disease, not Alzheimer disease.\",\"4\":\"Lewy bodies are intracellular alpha-synuclein inclusions of Parkinson disease/DLB, not AD's extracellular finding.\"},\"eli5\":\"Two kinds of trash pile up in the brain: one outside the neurons (amyloid plaques), one inside them (tau tangles).\"},{\"stem\":\"In addition to acetylcholine, which two neurotransmitters are characteristically diminished according to the cholinergic hypothesis of Alzheimer disease?\",\"choices\":[\"B. Dopamine and excess synaptic glutamate\",\"C. Serotonin and norepinephrine\",\"A. Dopamine and gamma-aminobutyric acid\",\"E. Epinephrine and synaptic glutamate excess\",\"D. Histamine and glycine, small amines\"],\"correct\":1,\"explanation\":\"The cholinergic hypothesis describes decline of ACh, serotonin, and norepinephrine -> this three-transmitter profile is what distinguishes AD's neurochemistry from a purely dopaminergic disease like Parkinson.\",\"wrongExplanations\":{\"0\":\"Dopamine is relatively spared in AD versus Parkinson; glutamate excess, not loss, is the separate excitotoxicity hypothesis.\",\"2\":\"Dopamine loss is the Parkinson hallmark, and GABA is not part of this hypothesis.\",\"3\":\"Norepinephrine (not epinephrine) is the noted catecholamine loss, and glutamate is elevated, not diminished.\",\"4\":\"Histamine and glycine are not the neurotransmitter losses described in the cholinergic hypothesis.\"},\"eli5\":\"It's not just acetylcholine that runs low in Alzheimer's - serotonin and norepinephrine drop too, unlike Parkinson's, where mainly dopamine drops.\"},{\"stem\":\"A student is comparing the neurochemistry of AD with that of Parkinson disease before an exam. Which neurotransmitter system's relatively selective loss is characteristic of Parkinson disease but not the primary defect in Alzheimer disease?\",\"choices\":[\"B. Cholinergic\",\"D. Noradrenergic\",\"E. Glutamatergic\",\"A. Dopaminergic\",\"C. Serotonergic\"],\"correct\":3,\"explanation\":\"Parkinson disease features relatively selective loss of dopaminergic neurons in the substantia nigra -> contrasted with AD, whose primary losses are cholinergic, serotonergic, and noradrenergic.\",\"wrongExplanations\":{\"0\":\"Cholinergic loss is a primary defect in AD itself, the opposite of what's being asked.\",\"1\":\"Noradrenergic decline is also part of AD's cholinergic-hypothesis profile.\",\"2\":\"Glutamate is elevated, not lost, in AD, and is not the Parkinson-defining system.\",\"4\":\"Serotonergic decline is part of AD's profile, not the Parkinson-specific finding.\"},\"eli5\":\"Parkinson's is mainly a dopamine disease. Alzheimer's is mainly an acetylcholine/serotonin/norepinephrine disease.\"},{\"stem\":\"A woman with moderate Alzheimer disease can no longer perform the learned motor sequence of brushing her teeth, despite intact arm strength and normal sensation on exam. This deficit is best classified as which of the following?\",\"choices\":[\"A. Agnosia\",\"B. Aphasia\",\"D. Disorientation\",\"E. Apraxia\",\"C. Amnesia\"],\"correct\":3,\"explanation\":\"Loss of a learned, purposeful motor sequence despite intact strength and sensation -> apraxia, one of the classic 4 A's of AD's cognitive symptom profile.\",\"wrongExplanations\":{\"0\":\"Agnosia is failure to recognize objects or people, not a failure to execute a learned motor task.\",\"1\":\"Aphasia is a language deficit, not a movement-sequencing deficit.\",\"2\":\"Disorientation is confusion about time, place, or person, not a motor execution problem.\",\"4\":\"Amnesia is memory loss, not what's being tested by an intact-strength motor failure.\"},\"eli5\":\"Her muscles and nerves work fine, but her brain has forgotten the how-to steps for a familiar task - that's apraxia.\"},{\"stem\":\"A 74-year-old man's family reports he can no longer manage his checkbook or plan meals, occasionally gets lost driving to familiar places, and has withdrawn from his weekly card game, though he still recognizes family and denies any memory problems. His MMSE score most likely falls into which range?\",\"choices\":[\"B. 21-26\",\"E. Below 0 (untestable)\",\"A. 27-30\",\"D. 0-9\",\"C. 10-20\"],\"correct\":0,\"explanation\":\"Difficulty with finances/food prep, getting lost driving, task withdrawal, and denial while family recognition is preserved -> classic mild-stage features, MMSE 21-26.\",\"wrongExplanations\":{\"1\":\"The MMSE does not score below 0; this is not a real category.\",\"2\":\"27-30 represents normal or minimally impaired cognition, inconsistent with the decline described.\",\"3\":\"0-9 (severe) includes loss of speech, ambulation, and continence, far beyond this vignette.\",\"4\":\"10-20 (moderate) includes disorientation to time and needing ADL assistance, not described here.\"},\"eli5\":\"He still knows his family, but everyday planning is slipping - that pattern matches the mild stage.\"},{\"stem\":\"A 76-year-old woman with Alzheimer disease requires help bathing and dressing, is frequently disoriented to time, and has become newly suspicious that her husband is stealing from her, though her symptoms fluctuate day to day. Her MMSE score most likely falls into which range?\",\"choices\":[\"A. 27-30\",\"E. Not assessable by MMSE\",\"D. 0-9\",\"C. 10-20\",\"B. 21-26\"],\"correct\":3,\"explanation\":\"Needing ADL assistance, disorientation to time, day-to-day fluctuation, and new suspicion/paranoia -> classic moderate-stage features, MMSE 10-20.\",\"wrongExplanations\":{\"0\":\"27-30 is normal-range cognition, inconsistent with needing ADL assistance.\",\"1\":\"The MMSE remains a valid tool at this stage; it is only truly limited once verbal output is lost.\",\"2\":\"0-9 (severe) involves loss of speech, ambulation, and continence, beyond what's described here.\",\"4\":\"21-26 (mild) does not typically include ADL dependence or paranoid suspicion.\"},\"eli5\":\"She needs help with daily tasks and is getting confused about time and even suspicious of her husband - that's the moderate stage.\"},{\"stem\":\"Among the nonpharmacologic interventions recommended for Alzheimer disease, which one has genuine evidence suggesting it may slow disease progression, rather than simply manage symptoms?\",\"choices\":[\"D. Individualized exercise programs\",\"C. Maintaining a low-stress environment\",\"B. Caregiver support groups\",\"E. Promoting daytime activity to improve sleep\",\"A. Providing security objects\"],\"correct\":0,\"explanation\":\"Individualized exercise programs are specifically noted as evidence-supported for potentially slowing dementia progression -> distinguishing exercise from the other, purely supportive measures.\",\"wrongExplanations\":{\"1\":\"A stable environment manages behavioral symptoms, not the underlying disease course.\",\"2\":\"Caregiver support groups reduce caregiver burden, not the patient's disease trajectory.\",\"3\":\"Promoting daytime activity regulates sleep-wake cycle, not the intervention tied to slowing progression.\",\"4\":\"Security objects reduce behavioral distress but are not described as slowing progression.\"},\"eli5\":\"Most of these tips just make daily life calmer. Exercise is the one that might actually help slow the disease down.\"},{\"stem\":\"A caregiver asks whether starting donepezil will slow the underlying neurodegenerative process in her husband's Alzheimer disease. Which is the most accurate response regarding current AD pharmacotherapy as a class?\",\"choices\":[\"D. Prolong overall patient survival by several years on average\",\"C. Reverse existing amyloid plaque burden gradually over time\",\"B. Reliably halt progression once started before MMSE falls under 20\",\"A. Manage symptoms without curing, halting, or reversing pathology\",\"E. Cure early-stage disease outright in most treated patients\"],\"correct\":3,\"explanation\":\"The stated goals of pharmacotherapy are to preserve function and treat behavioral symptoms -> current drugs do not prolong life, cure AD, or reverse pathophysiology.\",\"wrongExplanations\":{\"0\":\"No AD medication class is described as prolonging survival.\",\"1\":\"Only anti-amyloid antibodies reduce plaque burden, and even they don't clearly reverse the disease course.\",\"2\":\"No agent reliably halts progression regardless of timing; even the newest anti-amyloid antibodies lack clear supporting data.\",\"4\":\"There is no cure for Alzheimer disease with any current agent.\"},\"eli5\":\"None of these medicines fix the underlying problem in the brain - they just help manage symptoms for a while.\"},{\"stem\":\"All three cholinesterase inhibitors used for Alzheimer disease share which pharmacologic property that distinguishes them from organophosphate nerve agents?\",\"choices\":[\"B. Competitive NMDA receptor antagonism\",\"C. Reversible inhibition of acetylcholinesterase\",\"D. Allosteric potentiation of muscarinic receptors\",\"A. Selective inhibition of butyrylcholinesterase only\",\"E. Irreversible covalent inhibition of acetylcholinesterase\"],\"correct\":1,\"explanation\":\"All three AD cholinesterase inhibitors are reversible -> distinguishing them from irreversible AChE inhibitors like organophosphates and nerve gases, which are poisons, not therapeutics.\",\"wrongExplanations\":{\"0\":\"NMDA antagonism describes memantine, not the cholinesterase inhibitors.\",\"2\":\"None act as allosteric muscarinic potentiators; galantamine modulates nicotinic receptors, not shared by all three.\",\"3\":\"Only rivastigmine inhibits BuChE as well; this is not shared by all three, and none is BuChE-selective.\",\"4\":\"Irreversible covalent inhibition describes organophosphate poisons, the opposite of the shared property here.\"},\"eli5\":\"If a question describes an irreversible cholinesterase inhibitor, it's a poison, not one of these three AD drugs.\"},{\"stem\":\"Which cholinesterase inhibitor used for Alzheimer disease inhibits both acetylcholinesterase and butyrylcholinesterase, binding at the esteratic site of the enzyme?\",\"choices\":[\"D. Memantine\",\"E. Brexpiprazole\",\"C. Galantamine\",\"B. Rivastigmine\",\"A. Donepezil\"],\"correct\":3,\"explanation\":\"Rivastigmine is a non-selective carbamate that inhibits both AChE and BuChE at the esteratic site -> this dual-enzyme, esteratic-site profile distinguishes it from the other two AChE inhibitors.\",\"wrongExplanations\":{\"0\":\"Memantine is an NMDA antagonist with no cholinesterase-inhibiting activity.\",\"1\":\"Brexpiprazole is an antipsychotic for AD agitation, unrelated to cholinesterase inhibition.\",\"2\":\"Galantamine is a selective AChE inhibitor at the anionic subsite, not a dual AChE/BuChE inhibitor.\",\"4\":\"Donepezil is a selective, reversible AChE inhibitor at the peripheral anionic site, not both enzymes.\"},\"eli5\":\"Rivastigmine is the one that blocks two different cholinesterase enzymes at once, not just one.\"},{\"stem\":\"A patient's cholinesterase inhibitor has essentially unchanged clearance when a strong CYP3A4 inhibitor is added, because the drug is hydrolyzed by plasma esterases rather than metabolized hepatically. Which drug is being described?\",\"choices\":[\"D. Aducanumab, an IgG monoclonal antibody agent\",\"E. Rivastigmine, hydrolyzed by plasma esterases\",\"A. Donepezil, hepatically metabolized by CYP2D6/3A4\",\"B. Galantamine, hepatically metabolized by CYP2D6/3A4\",\"C. Memantine, cleared largely unchanged by the kidney\"],\"correct\":1,\"explanation\":\"Rivastigmine is hydrolyzed in plasma, not CYP-dependent -> explains why adding a CYP3A4 inhibitor would not meaningfully change its clearance, unlike donepezil or galantamine.\",\"wrongExplanations\":{\"0\":\"Aducanumab is a monoclonal antibody, not subject to CYP or esterase metabolism at all.\",\"2\":\"Donepezil is metabolized by CYP2D6 and CYP3A4, so a CYP3A4 inhibitor would alter its clearance.\",\"3\":\"Galantamine is also CYP2D6/3A4-metabolized, making it susceptible to CYP3A4 inhibition.\",\"4\":\"Memantine is cleared largely unchanged in urine, not by plasma hydrolysis, and this vignette describes hydrolysis specifically.\"},\"eli5\":\"This drug gets broken down right in the bloodstream, not by the liver, so liver-enzyme-blocking drugs don't change how much sticks around.\"},{\"stem\":\"Which class-wide adverse effect of cholinesterase inhibitors, from excess cholinergic tone, is most important to monitor in an elderly Alzheimer patient with underlying cardiac conduction disease?\",\"choices\":[\"E. Malignant hyperthermia and rigidity\",\"C. Hypertensive urgency and headache\",\"A. Bradycardia and syncope\",\"B. Tachycardia and palpitations\",\"D. QT interval shortening on ECG\"],\"correct\":2,\"explanation\":\"Excess cholinergic tone from AChE inhibition -> bradycardia and syncope, a class-wide effect easy to overlook alongside the more commonly cited GI side effects.\",\"wrongExplanations\":{\"0\":\"Malignant hyperthermia is associated with certain anesthetics/antipsychotics, not cholinesterase inhibitors.\",\"1\":\"Blood pressure effects are not the highlighted cardiac concern for this class.\",\"3\":\"Cholinergic excess slows heart rate via vagal tone, producing bradycardia, not tachycardia.\",\"4\":\"QT changes are not the described cholinergic-mediated cardiac effect for this class.\"},\"eli5\":\"Too much acetylcholine signal can slow the heart down and make someone feel faint - that's the effect to watch for.\"},{\"stem\":\"An 82-year-old woman with moderate Alzheimer disease taking donepezil is newly prescribed oxybutynin for urinary incontinence. Which outcome is most likely from this combination?\",\"choices\":[\"C. Increased donepezil level from CYP enzyme inhibition\",\"E. No interaction of any clinical significance here\",\"A. Increased risk of a cholinergic crisis developing\",\"B. Potentiated cognitive benefit from the donepezil\",\"D. Reduced donepezil benefit, anticholinergic action\"],\"correct\":4,\"explanation\":\"Oxybutynin is an anticholinergic -> it works directly against the cholinesterase inhibitor's mechanism, decreasing donepezil's benefit, which is why the med list should always be screened for anticholinergic burden.\",\"wrongExplanations\":{\"0\":\"The interaction described is pharmacodynamic, not a CYP-mediated pharmacokinetic one.\",\"1\":\"This is a well-recognized, clinically significant interaction specifically flagged for this population.\",\"2\":\"This combination pulls in opposite directions pharmacodynamically, so cholinergic crisis is not the expected outcome.\",\"3\":\"Anticholinergics oppose, rather than potentiate, cholinesterase inhibitor benefit.\"},\"eli5\":\"Donepezil tries to boost a brain chemical, and oxybutynin blocks that same chemical elsewhere - together they work against each other.\"},{\"stem\":\"Memantine reduces glutamate-mediated excitotoxicity in Alzheimer disease through which mechanism?\",\"choices\":[\"E. Allosteric potentiation of GABA-A receptors\",\"C. Uncompetitive NMDA channel blockade within the pore\",\"D. Presynaptic inhibition of glutamate release\",\"B. AMPA receptor antagonism at the synapse\",\"A. Competitive antagonism at the glutamate binding site\"],\"correct\":1,\"explanation\":\"Memantine is an uncompetitive NMDA receptor antagonist that binds within the channel pore rather than at a distinct allosteric or orthosteric site -> this blocks excitotoxic signaling without simply competing at the glutamate site.\",\"wrongExplanations\":{\"0\":\"Memantine has no described action on GABA-A receptors.\",\"2\":\"Memantine's mechanism is postsynaptic channel blockade, not presynaptic release inhibition.\",\"3\":\"Memantine acts at NMDA receptors, not AMPA receptors.\",\"4\":\"Memantine is specifically uncompetitive, not competitive at the glutamate-binding site.\"},\"eli5\":\"Memantine plugs the doorway of the NMDA receptor from the inside, rather than fighting glutamate for the same parking spot.\"},{\"stem\":\"A patient with moderate-to-severe Alzheimer disease and a creatinine clearance of 22 mL/min is started on memantine. Which adjustment is appropriate given this renal function?\",\"choices\":[\"C. Avoid memantine entirely regardless of dose\",\"D. Substitute an equivalent dose of donepezil instead\",\"E. Double the standard dose to offset absorption\",\"B. Reduce the memantine dose for this CrCl\",\"A. No dose adjustment is needed at this CrCl\"],\"correct\":3,\"explanation\":\"Memantine is excreted largely unchanged in urine, so the dose should be reduced when CrCl is under 30 mL/min -> this patient's CrCl of 22 mL/min falls below that threshold.\",\"wrongExplanations\":{\"0\":\"Complete avoidance isn't required; dose reduction, not avoidance, is the recommended approach.\",\"1\":\"Donepezil isn't a substitute for memantine's indication or mechanism, and doesn't address the renal issue.\",\"2\":\"Reduced clearance means the drug accumulates, so doubling the dose would worsen toxicity risk.\",\"4\":\"Memantine's renal excretion means impaired function does require adjustment below the CrCl 30 threshold.\"},\"eli5\":\"Since the kidneys clear this drug, and this patient's kidneys aren't working well, the dose needs to be lowered.\"},{\"stem\":\"A cholinesterase inhibitor trial reports a mean improvement of 2.7 points on the 70-point ADAS-Cog scale, with a very small p-value. What is the most accurate clinical interpretation of this finding?\",\"choices\":[\"B. Proof that this drug halts disease progression entirely\",\"A. Statistically significant, but a small clinical effect\",\"E. Evidence disproving the cholinergic hypothesis of AD\",\"C. A tight interval implying benefit for every patient\",\"D. Evidence the trial result is not statistically valid\"],\"correct\":1,\"explanation\":\"Statistically significant does not equal clinically meaningful -> a rock-solid p-value paired with a tiny fraction of a 70-point scale is the classic distinction running through the AD pharmacotherapy evidence section.\",\"wrongExplanations\":{\"0\":\"Statistical significance on a cognitive scale doesn't equate to halting the underlying disease.\",\"2\":\"This finding actually supports the cholinergic hypothesis, rather than disproving it.\",\"3\":\"A narrow confidence interval reflects precision of the estimate, not universality of benefit.\",\"4\":\"Effect size and statistical validity are separate; this result is both valid and modest in magnitude.\"},\"eli5\":\"The math says the improvement is real, but the actual improvement is tiny on the whole scale - real doesn't always mean big.\"},{\"stem\":\"Which class of drugs used for agitation and psychosis in Alzheimer disease carries a boxed warning for increased mortality in elderly patients with dementia-related psychosis?\",\"choices\":[\"B. Anticonvulsants, sometimes used for agitation instead\",\"E. Antipsychotics, both typical and atypical agents\",\"A. SSRIs, generally the safer antidepressant option here\",\"C. Cholinesterase inhibitors, used to target cognition\",\"D. NMDA receptor blockers, used to target cognition too\"],\"correct\":1,\"explanation\":\"Elderly patients with dementia-related psychosis treated with antipsychotics are at increased risk of death -> this boxed warning applies to the entire antipsychotic class and demands judicious, short-duration use.\",\"wrongExplanations\":{\"0\":\"Anticonvulsants are used for agitation but do not carry this specific mortality warning.\",\"2\":\"SSRIs are actually the safer antidepressant choice here and do not carry this warning.\",\"3\":\"Cholinesterase inhibitors target cognitive symptoms and lack this mortality boxed warning.\",\"4\":\"NMDA antagonists (memantine) also target cognitive symptoms and lack this boxed warning.\"},\"eli5\":\"Antipsychotics used to calm agitation or treat hallucinations in dementia come with a serious warning: they can increase the risk of death, so they're used carefully.\"},{\"stem\":\"Donanemab and lecanemab, IgG monoclonal antibodies targeting amyloid beta, are most associated with which characteristic adverse effect profile?\",\"choices\":[\"A. Hepatotoxicity along with drug-induced pancreatitis\",\"C. Extrapyramidal symptoms and tardive dyskinesia risk\",\"E. QT prolongation with risk of torsades de pointes\",\"B. Agranulocytosis with severe drug-induced neutropenia\",\"D. Hemosiderosis, microhemorrhage, and cerebral edema\"],\"correct\":4,\"explanation\":\"Anti-amyloid monoclonal antibodies are associated with hemosiderosis, microhemorrhage, brain edema, headache, and increased fall risk -> these ARIA-type findings follow directly from clearing amyloid out of cerebral tissue.\",\"wrongExplanations\":{\"0\":\"Hepatotoxicity is the classic concern with tacrine, an older AChE inhibitor no longer marketed, not the mAbs.\",\"1\":\"Extrapyramidal symptoms are associated with antipsychotics used for AD behavior, not the mAbs.\",\"2\":\"QT prolongation is not a highlighted adverse effect of this antibody class.\",\"3\":\"Agranulocytosis/neutropenia are not described adverse effects of this antibody class.\"},\"eli5\":\"Because these antibodies pull amyloid out of blood vessel walls in the brain, they can cause small bleeds and swelling as a side effect.\"},{\"stem\":\"A clinician is choosing between brexpiprazole and aripiprazole for agitation in a patient with moderate Alzheimer disease. Which statement best reflects the actual evidence and practice comparison between these two agents?\",\"choices\":[\"B. Aripiprazole, not brexpiprazole, is FDA-approved here\",\"D. Neither drug carries a mortality boxed warning here\",\"A. Brexpiprazole is clearly superior, justifying its cost\",\"E. Both are used only after ChEIs and memantine fail\",\"C. Brexpiprazole is on-label; aripiprazole works similarly\"],\"correct\":4,\"explanation\":\"Brexpiprazole is the only drug FDA-approved specifically for AD agitation, but off-label aripiprazole shows comparable efficacy at roughly $15/month versus brexpiprazole's ~$1,400/month -> on-label status doesn't necessarily mean it's the only reasonable choice.\",\"wrongExplanations\":{\"0\":\"This has the approval status backward - brexpiprazole is on-label, aripiprazole is off-label.\",\"1\":\"Both remain antipsychotics and both carry the boxed warning for increased mortality in elderly dementia-related psychosis.\",\"2\":\"There is no clear evidence of superior efficacy or safety for brexpiprazole despite the large cost difference.\",\"3\":\"Antipsychotics address a different symptom domain (behavioral) and are not strictly sequenced after the cognitive-symptom drugs fail.\"},\"eli5\":\"One drug has the official FDA stamp for this use, but a much cheaper drug in the same family works about as well off-label.\"},{\"stem\":\"Among the risk factors for Alzheimer disease listed for this unit (reduced brain reserve, head injury, Down syndrome, depression, vascular disease), which factor is identified as the single biggest contributor to risk?\",\"choices\":[\"C. Depression history\",\"B. Prior head injury\",\"A. Increasing age\",\"D. Low brain reserve\",\"E. Vascular disease\"],\"correct\":2,\"explanation\":\"Increasing age is explicitly called out as the single biggest risk factor for Alzheimer disease, ahead of the other contributors listed alongside it.\",\"wrongExplanations\":{\"0\":\"Depression is a listed contributor but not the top risk factor.\",\"1\":\"Head injury is a listed contributor but not identified as the single biggest risk factor.\",\"3\":\"Reduced brain reserve (small brain size, low education, low activity) is a contributor, not the single biggest one.\",\"4\":\"Vascular disease is a listed contributor but not the top risk factor.\"},\"eli5\":\"Out of everything that raises your risk for Alzheimer's, just getting older is the single biggest one.\"},{\"stem\":\"Amyloid precursor protein (APP) can be cleaved by alpha-, beta-, or gamma-secretase. Cleavage by which pair of secretases generates the pathologic Abeta fragment responsible for plaque formation?\",\"choices\":[\"A. Alpha- and beta-secretase together\",\"D. Beta-secretase acting alone\",\"C. Alpha- and gamma-secretase together\",\"E. Gamma-secretase acting alone\",\"B. Beta- and gamma-secretase together\"],\"correct\":4,\"explanation\":\"The amyloidogenic pathway proceeds via beta- then gamma-secretase cleavage of APP, generating Abeta, which aggregates into plaques and triggers the downstream cascade.\",\"wrongExplanations\":{\"0\":\"Alpha- and beta-secretase are not the paired amyloidogenic route; alpha-secretase cleavage is part of the non-amyloidogenic pathway.\",\"1\":\"Beta-secretase alone does not complete the cleavage needed to generate the mature Abeta fragment.\",\"2\":\"Alpha- and gamma-secretase together is not the amyloidogenic pairing described.\",\"3\":\"Gamma-secretase alone does not complete the cleavage without the preceding beta-secretase step.\"},\"eli5\":\"Two specific 'scissors' enzymes have to cut APP in sequence, beta then gamma, to make the sticky Abeta piece that forms plaques.\"},{\"stem\":\"A family reports that a patient with known Alzheimer disease has begun wandering at night, has become physically aggressive toward caregivers, and appears to be responding to hallucinations. These findings are best categorized as which type of AD symptom, distinct from her memory loss and apraxia?\",\"choices\":[\"A. Cognitive symptoms\",\"B. Noncognitive symptoms\",\"C. Focal neurologic deficits\",\"E. Extrapyramidal symptoms\",\"D. Autonomic dysfunction\"],\"correct\":1,\"explanation\":\"Wandering, aggression, and hallucinations fall under noncognitive symptoms (psychotic symptoms and behavioral disturbances), a category distinct from the cognitive symptoms (memory, language, praxis) also seen in AD.\",\"wrongExplanations\":{\"0\":\"Cognitive symptoms refer to memory loss, aphasia, apraxia, agnosia, disorientation, and executive dysfunction, not the behaviors described here.\",\"2\":\"These findings are behavioral/psychiatric, not focal neurologic deficits.\",\"3\":\"Extrapyramidal symptoms refer to movement side effects of antipsychotics, not this patient's presenting behaviors.\",\"4\":\"Autonomic dysfunction is not the category being described here.\"},\"eli5\":\"Forgetting things is a 'cognitive' problem, but wandering, aggression, and hallucinations are 'noncognitive' problems - a different bucket of symptoms.\"},{\"stem\":\"AEs aside, memantine is generally well tolerated and has few clinically significant drug interactions. Which adverse effect described for memantine is notable because it is ironic given the drug's intended therapeutic goal?\",\"choices\":[\"B. Constipation and dry mouth\",\"D. Mild headache on initiation\",\"C. Hallucinations and delusions\",\"A. Dizziness and unsteady gait\",\"E. Peripheral edema in the ankles\"],\"correct\":2,\"explanation\":\"Memantine can cause hallucinations and delusions -> ironic given the drug is meant to help cognition, not produce psychotic-type symptoms itself.\",\"wrongExplanations\":{\"0\":\"Constipation is a listed memantine adverse effect but not the ironic one being tested here.\",\"1\":\"Headache is a listed adverse effect but not the one flagged as ironic.\",\"3\":\"Dizziness is a real memantine adverse effect but is not the one highlighted as ironic relative to the drug's goal.\",\"4\":\"Peripheral edema is not among memantine's described adverse effects.\"},\"eli5\":\"Memantine is supposed to help thinking, but one of its side effects can actually cause hallucinations or delusions - which feels backwards.\"},{\"stem\":\"In cholinesterase inhibitor trials for Alzheimer disease, patients discontinued treatment due to adverse events at what rate compared to patients on placebo?\",\"choices\":[\"C. Discontinuation rates were identical in both groups\",\"A. 29% of ChEI patients vs 18% of placebo patients\",\"E. Discontinuation data were not reported in these trials\",\"D. Fewer ChEI patients discontinued than placebo patients\",\"B. 18% of ChEI patients vs 29% of placebo patients\"],\"correct\":1,\"explanation\":\"More patients discontinue cholinesterase inhibitor treatment due to adverse events (29%) than discontinue placebo (18%) -> a real-world tolerability tradeoff that pairs with the modest ADAS-Cog benefit.\",\"wrongExplanations\":{\"0\":\"The rates are not identical; ChEI discontinuation due to adverse events is notably higher.\",\"2\":\"Discontinuation rates are specifically reported and are part of the evidence discussion for this drug class.\",\"3\":\"More, not fewer, ChEI patients discontinued due to adverse events compared to placebo.\",\"4\":\"This reverses the actual rates; more ChEI patients, not placebo patients, discontinued due to adverse events.\"},\"eli5\":\"More people quit taking the real drug because of side effects than quit taking the placebo - about 29% versus 18%.\"},{\"stem\":\"A clinician wants a concrete benchmark for judging whether a patient's response to AD pharmacotherapy is clinically meaningful, beyond trial statistics. The average untreated patient declines how many MMSE points per year, and what decline rate on treatment is considered clinically meaningful?\",\"choices\":[\"D. Untreated decline of 2-4 points a year; goal is improvement\",\"E. No benchmark exists for judging treatment response here\",\"C. Untreated decline of 1 point a year; goal full reversal\",\"B. Untreated decline of 5-7 points a year; goal under 5\",\"A. Untreated decline of 2-4 points a year; goal under 2\"],\"correct\":4,\"explanation\":\"The average untreated patient declines 2-4 MMSE points per year, and keeping decline under 2 points/year is considered clinically meaningful -> a concrete, practical way to judge real-world treatment response.\",\"wrongExplanations\":{\"0\":\"Meaningful response is defined as slowed decline, not necessarily an improvement in MMSE score.\",\"1\":\"This specific benchmark (2-4 points/year untreated, under 2 points/year on treatment) is explicitly given in this lecture.\",\"2\":\"AD pharmacotherapy is not expected to fully reverse decline; the benchmark is about slowing, not reversing.\",\"3\":\"The untreated decline rate and meaningful-response threshold described here are both too high compared to the actual benchmark.\"},\"eli5\":\"Without treatment, memory test scores usually drop 2-4 points a year. If a drug keeps that drop under 2 points a year, that's considered a real win.\"},{\"stem\":\"A patient's family asks about starting high-dose vitamin E to help slow her Alzheimer disease, based on its antioxidant properties targeting free radical damage. What is the most accurate counseling point regarding this therapy?\",\"choices\":[\"B. Clear cognitive benefit shown, with minimal risk at any dose\",\"A. No convincing benefit shown; real mortality/bleeding risk\",\"E. Should replace cholinesterase inhibitors as first-line care\",\"C. FDA approval granted specifically for mild-stage disease\",\"D. Works best paired with an anti-amyloid antibody agent\"],\"correct\":1,\"explanation\":\"Three double-blind RCTs found no convincing benefit of vitamin E in AD or MCI, and doses of 400 IU/day or more for a year or longer may increase mortality and bleeding/hemorrhagic stroke risk -> a plausible mechanism that didn't pan out clinically.\",\"wrongExplanations\":{\"0\":\"No convincing cognitive benefit was demonstrated, and high doses carry real risk, contrary to this option.\",\"2\":\"Vitamin E is not recommended at all, let alone as a replacement for first-line cholinesterase inhibitors.\",\"3\":\"Vitamin E is not FDA-approved for this indication; it remains an unproven, non-recommended therapy.\",\"4\":\"No combination benefit with anti-amyloid antibodies is described for vitamin E.\"},\"eli5\":\"Vitamin E sounded like it should help based on its antioxidant effect, but studies showed no real benefit, and high doses can actually be risky.\"},{\"stem\":\"Given that inflammation is part of the amyloid cascade's downstream effects, NSAIDs were tested as a theoretically reasonable therapy for Alzheimer disease. What did prospective clinical trials of NSAIDs in AD ultimately show?\",\"choices\":[\"D. Benefit equivalent to that of anti-amyloid monoclonal antibodies\",\"C. Benefit only in patients also taking a cholinesterase inhibitor\",\"B. Significant slowing of cognitive decline with few risks\",\"A. No benefit, with real risk of gastritis and GI bleeding\",\"E. NSAIDs reversed existing amyloid plaque burden on imaging\"],\"correct\":3,\"explanation\":\"Despite a biologically plausible anti-inflammatory rationale, prospective trials showed no benefit from NSAIDs in AD, while carrying real risk of gastritis and GI bleeding -> not recommended.\",\"wrongExplanations\":{\"0\":\"NSAIDs are not shown to be equivalent to the anti-amyloid monoclonal antibodies, which directly target amyloid.\",\"1\":\"No combination-specific benefit with cholinesterase inhibitors is described for NSAIDs.\",\"2\":\"No significant slowing of decline was demonstrated in trials; the theoretical benefit didn't materialize.\",\"4\":\"NSAIDs do not reduce or reverse amyloid plaque burden; that mechanism is not supported.\"},\"eli5\":\"It made sense on paper that anti-inflammatory drugs might help, since inflammation is part of the disease process, but trials showed no real benefit and real bleeding risk.\"},{\"stem\":\"Aducanumab, the original anti-amyloid monoclonal antibody, had a controversial path to FDA approval. Which best describes that history?\",\"choices\":[\"D. Still the top-selling anti-amyloid antibody today\",\"E. Approved only after donanemab and lecanemab succeeded first\",\"C. Approval granted with no advisory committee review at all\",\"B. A unanimous committee vote favoring swift approval\",\"A. An 8-to-1 vote against, approved anyway, later pulled\"],\"correct\":4,\"explanation\":\"The Peripheral and Central Nervous System Drugs Advisory Committee voted 8 to 1 against approving aducanumab, citing insufficient evidence of efficacy, yet the FDA approved it anyway; it has since been removed from the U.S. market.\",\"wrongExplanations\":{\"0\":\"Aducanumab has been removed from the U.S. market, not remained the top seller.\",\"1\":\"Aducanumab was the original anti-amyloid antibody, approved before donanemab and lecanemab, not after.\",\"2\":\"An advisory committee did review and vote on aducanumab; it just voted against approval.\",\"3\":\"The committee vote was strongly against approval (8 to 1), not a unanimous recommendation in favor.\"},\"eli5\":\"The expert panel voted almost unanimously against approving this drug, but the FDA approved it anyway - and it later got pulled from the market.\"},{\"stem\":\"A patient with Alzheimer disease and comorbid depression is already taking donepezil for cognitive symptoms. Which antidepressant class should generally be avoided in this patient, and why?\",\"choices\":[\"B. SSRIs, which overly potentiate donepezil's cholinergic effect\",\"A. Tricyclics, whose anticholinergic action opposes donepezil\",\"E. Benzodiazepines, which risk respiratory depression here\",\"D. Antipsychotics, due to a boxed-warning conflict with donepezil\",\"C. MAOIs, which risk hypertensive crisis with donepezil\"],\"correct\":1,\"explanation\":\"Tricyclic antidepressants have anticholinergic effects that work against donepezil's mechanism, the same anticholinergic-burden interaction covered earlier with oxybutynin -> SSRIs are the safer antidepressant choice in this population.\",\"wrongExplanations\":{\"0\":\"SSRIs are actually the safer, recommended antidepressant choice in this population, not the one to avoid.\",\"2\":\"Benzodiazepine respiratory depression is not the interaction being tested; the concern here is anticholinergic burden.\",\"3\":\"Antipsychotics are a separate drug class for behavioral/psychotic symptoms, not an antidepressant choice, and their boxed warning is unrelated to donepezil interaction.\",\"4\":\"MAOI-related hypertensive crisis is not the described interaction concern with donepezil in this content.\"},\"eli5\":\"TCAs fight against what donepezil is trying to do in the brain, so SSRIs are the safer pick for depression in these patients.\"}]";
+var PRELOADED_UI_MODE="nbme";
+var DEFAULT_QUESTION_COUNT=15;
+var MAX_AI_QUESTION_COUNT=25;
+var DOWNLOAD_TEMPLATE='';
+var LAB_SECTIONS=[{"title":"Serum","rows":[{"name":"Alanine aminotransferase (ALT)","us":"10–40 U/L","si":"10–40 U/L"},{"name":"Aspartate aminotransferase (AST)","us":"12–38 U/L","si":"12–38 U/L"},{"name":"Alkaline phosphatase","us":"25–100 U/L","si":"25–100 U/L"},{"name":"Amylase","us":"25–125 U/L","si":"25–125 U/L"},{"name":"Bilirubin, total // direct","us":"0.1–1.0 mg/dL // 0.0–0.3 mg/dL","si":"2–17 µmol/L // 0–5 µmol/L"},{"name":"Calcium","us":"8.4–10.2 mg/dL","si":"2.1–2.6 mmol/L"},{"group":"Cholesterol"},{"name":"Total","us":"Normal: &lt;200 mg/dL // High: &gt;240 mg/dL","si":"&lt;5.2 mmol/L // &gt;6.2 mmol/L"},{"name":"HDL","us":"40–60 mg/dL","si":"1.0–1.6 mmol/L"},{"name":"LDL","us":"&lt;160 mg/dL","si":"&lt;4.2 mmol/L"},{"name":"Triglycerides","us":"Normal: &lt;150 mg/dL // Borderline: 151–199 mg/dL","si":"&lt;1.70 mmol/L // 1.71–2.25 mmol/L"},{"name":"Cortisol","us":"0800 h: 5–23 µg/dL // 1600 h: 3–15 µg/dL","si":"138–635 nmol/L // 82–413 nmol/L"},{"name":"","us":"2000 h: &lt;50% of 0800 h","si":"Fraction of 0800 h: &lt;0.50"},{"name":"Creatine kinase","us":"Male: 25–90 U/L","si":"25–90 U/L"},{"name":"","us":"Female: 10–70 U/L","si":"10–70 U/L"},{"name":"Creatinine","us":"0.6–1.2 mg/dL","si":"53–106 µmol/L"},{"name":"Urea nitrogen","us":"7–18 mg/dL","si":"2.5–6.4 mmol/L"},{"name":"Creatinine clearance","us":"Male: 97–137 mL/min","si":"97–137 mL/min"},{"name":"","us":"Female: 88–128 mL/min","si":"88–128 mL/min"},{"group":"Electrolytes, serum"},{"name":"Sodium (Na<sup>+</sup>)","us":"136–146 mEq/L","si":"136–146 mmol/L"},{"name":"Potassium (K<sup>+</sup>)","us":"3.5–5.0 mEq/L","si":"3.5–5.0 mmol/L"},{"name":"Chloride (Cl<sup>−</sup>)","us":"95–105 mEq/L","si":"95–105 mmol/L"},{"name":"Bicarbonate (HCO<sub>3</sub><sup>−</sup>)","us":"22–28 mEq/L","si":"22–28 mmol/L"},{"name":"Magnesium (Mg<sup>2+</sup>)","us":"1.5–2.0 mg/dL","si":"0.75–1.0 mmol/L"},{"name":"Ferritin","us":"Male: 20–250 ng/mL","si":"20–250 µg/L"},{"name":"","us":"Female: 10–120 ng/mL","si":"10–120 µg/L"},{"name":"Follicle-stimulating hormone","us":"Male: 4–25 mIU/mL","si":"4–25 U/L"},{"name":"","us":"Female: premenopause 4–30 mIU/mL","si":"4–30 U/L"},{"name":"","us":"midcycle peak 10–90 mIU/mL","si":"10–90 U/L"},{"name":"","us":"postmenopause 40–250 mIU/mL","si":"40–250 U/L"},{"name":"Glucose","us":"Fasting: 70–100 mg/dL","si":"3.8–5.6 mmol/L"},{"name":"","us":"Random, non-fasting: &lt;140 mg/dL","si":"&lt;7.77 mmol/L"},{"name":"Growth hormone - arginine stimulation","us":"Fasting: &lt;5 ng/mL","si":"&lt;5 µg/L"},{"name":"","us":"Provocative stimuli: &gt;7 ng/mL","si":"&gt;7 µg/L"},{"name":"Iron","us":"Male: 65–175 µg/dL","si":"11.6–31.3 µmol/L"},{"name":"","us":"Female: 50–170 µg/dL","si":"9.0–30.4 µmol/L"},{"name":"Total iron-binding capacity","us":"250–400 µg/dL","si":"44.8–71.6 µmol/L"},{"name":"Transferrin","us":"200–360 mg/dL","si":"2.0–3.6 g/L"},{"name":"Lactate dehydrogenase","us":"45–200 U/L","si":"45–200 U/L"},{"name":"Lipase","us":"13–60 U/L","si":"13–60 U/L"},{"name":"Luteinizing hormone","us":"Male: 6–23 mIU/mL","si":"6–23 U/L"},{"name":"","us":"Female: follicular phase 5–30 mIU/mL","si":"5–30 IU/L"},{"name":"","us":"midcycle 75–150 mIU/mL","si":"75–150 IU/L"},{"name":"","us":"postmenopause 30–200 mIU/mL","si":"30–200 IU/L"},{"name":"Osmolality","us":"275–295 mOsmol/kg H<sub>2</sub>O","si":"275–295 mOsmol/kg H<sub>2</sub>O"},{"name":"Intact parathyroid hormone (PTH)","us":"10–60 pg/mL","si":"10–60 ng/L"},{"name":"Phosphorus (inorganic)","us":"3.0–4.5 mg/dL","si":"1.0–1.5 mmol/L"},{"name":"Prolactin (hPRL)","us":"Male: &lt;17 ng/mL","si":"&lt;17 µg/L"},{"name":"","us":"Female: &lt;25 ng/mL","si":"&lt;25 µg/L"},{"group":"Proteins"},{"name":"Total","us":"6.0–7.8 g/dL","si":"60–78 g/L"},{"name":"Albumin","us":"3.5–5.5 g/dL","si":"35–55 g/L"},{"name":"Globulin","us":"2.3–3.5 g/dL","si":"23–35 g/L"},{"name":"Troponin I","us":"≤0.04 ng/mL","si":"≤0.04 µg/L"},{"name":"TSH","us":"0.4–4.0 μU/mL","si":"0.4–4.0 mIU/L"},{"name":"Thyroidal iodine (<sup>123</sup>I) uptake","us":"8%–30% of administered dose/24 h","si":"0.08–0.30/24 h"},{"name":"Thyroxine (T<sub>4</sub>)","us":"5–12 µg/dL","si":"64–155 nmol/L"},{"name":"Free T<sub>4</sub>","us":"0.9–1.7 ng/dL","si":"12.0–21.9 pmol/L"},{"name":"Triiodothyronine (T<sub>3</sub>) (RIA)","us":"100–200 ng/dL","si":"1.5–3.1 nmol/L"},{"name":"Triiodothyronine (T<sub>3</sub>) resin uptake","us":"25%–35%","si":"0.25–0.35"},{"name":"Uric acid","us":"3.0–8.2 mg/dL","si":"0.18–0.48 mmol/L"},{"group":"Immunoglobulins"},{"name":"IgA","us":"76–390 mg/dL","si":"0.76–3.90 g/L"},{"name":"IgE","us":"0–380 IU/mL","si":"0–380 kIU/L"},{"name":"IgG","us":"650–1500 mg/dL","si":"6.5–15.0 g/L"},{"name":"IgM","us":"50–300 mg/dL","si":"0.5–3.0 g/L"},{"group":"Gases, arterial blood (room air)"},{"name":"pH","us":"7.35–7.45","si":"[H<sup>+</sup>] 36–44 nmol/L"},{"name":"Pco<sub>2</sub>","us":"33–45 mm Hg","si":"4.4–5.9 kPa"},{"name":"Po<sub>2</sub>","us":"75–105 mm Hg","si":"10.0–14.0 kPa"}]},{"title":"Cerebrospinal Fluid","rows":[{"name":"Cell count","us":"0–5/mm<sup>3</sup>","si":"0–5 x 10<sup>6</sup>/L"},{"name":"Chloride","us":"118–132 mEq/L","si":"118–132 mmol/L"},{"name":"Gamma globulin","us":"3%–12% total proteins","si":"0.03–0.12"},{"name":"Glucose","us":"40–70 mg/dL","si":"2.2–3.9 mmol/L"},{"name":"Pressure","us":"70–180 mm H<sub>2</sub>O","si":"70–180 mm H<sub>2</sub>O"},{"name":"Proteins, total","us":"&lt;40 mg/dL","si":"&lt;0.40 g/L"}]},{"title":"Hematologic","rows":[{"name":"Erythrocyte count (RBC)","us":"Male: 4.3–5.9 million/mm<sup>3</sup>","si":"4.3–5.9 x 10<sup>12</sup>/L"},{"name":"","us":"Female: 3.5–5.5 million/mm<sup>3</sup>","si":"3.5–5.5 x 10<sup>12</sup>/L"},{"name":"Erythrocyte sedimentation rate (Westergren)","us":"Male: 0–15 mm/h","si":"0–15 mm/h"},{"name":"","us":"Female: 0–20 mm/h","si":"0–20 mm/h"},{"name":"Hematocrit","us":"Male: 41%–53%","si":"0.41–0.53"},{"name":"","us":"Female: 36%–46%","si":"0.36–0.46"},{"name":"Hemoglobin, blood","us":"Male: 13.5–17.5 g/dL","si":"135–175 g/L"},{"name":"","us":"Female: 12.0–16.0 g/dL","si":"120–160 g/L"},{"name":"Hemoglobin A<sub>1c</sub>","us":"≤6%","si":"≤42 mmol/mol"},{"name":"Leukocyte count (WBC)","us":"4500–11,000/mm<sup>3</sup>","si":"4.5–11.0 x 10<sup>9</sup>/L"},{"name":"Neutrophils, segmented","us":"54%–62%","si":"0.54–0.62"},{"name":"Neutrophils, bands","us":"3%–5%","si":"0.03–0.05"},{"name":"Eosinophils","us":"1%–3%","si":"0.01–0.03"},{"name":"Basophils","us":"0%–0.75%","si":"0.00–0.0075"},{"name":"Lymphocytes","us":"25%–33%","si":"0.25–0.33"},{"name":"Monocytes","us":"3%–7%","si":"0.03–0.07"},{"name":"CD4+ T-lymphocyte count","us":"≥500/mm<sup>3</sup>","si":"≥0.5 x 10<sup>9</sup>/L"},{"name":"Platelet count","us":"150,000–400,000/mm<sup>3</sup>","si":"150–400 x 10<sup>9</sup>/L"},{"name":"Reticulocyte count","us":"0.5%–1.5%","si":"0.005–0.015"},{"name":"D-Dimer","us":"≤250 ng/mL","si":"≤1.4 nmol/L"},{"name":"Partial thromboplastin time (aPTT) (activated)","us":"25–40 seconds","si":"25–40 seconds"},{"name":"Prothrombin time (PT)","us":"11–15 seconds","si":"11–15 seconds"},{"name":"Mean corpuscular hemoglobin (MCH)","us":"25–35 pg/cell","si":"0.39–0.54 fmol/cell"},{"name":"Mean corpuscular hemoglobin concentration (MCHC)","us":"31%–36% Hb/cell","si":"4.8–5.6 mmol Hb/L"},{"name":"Mean corpuscular volume (MCV)","us":"80–100 µm<sup>3</sup>","si":"80–100 fL"},{"group":"Volume"},{"name":"Plasma","us":"Male: 25–43 mL/kg","si":"0.025–0.043 L/kg"},{"name":"","us":"Female: 28–45 mL/kg","si":"0.028–0.045 L/kg"},{"name":"Red cell","us":"Male: 20–36 mL/kg","si":"0.020–0.036 L/kg"},{"name":"","us":"Female: 19–31 mL/kg","si":"0.019–0.031 L/kg"}]},{"title":"Urine","rows":[{"name":"Calcium","us":"100–300 mg/24 h","si":"2.5–7.5 mmol/24 h"},{"name":"Osmolality","us":"50–1200 mOsmol/kg H<sub>2</sub>O","si":"50–1200 mOsmol/kg H<sub>2</sub>O"},{"name":"Oxalate","us":"8–40 µg/mL","si":"90–445 µmol/L"},{"name":"Proteins, total","us":"&lt;150 mg/24 h","si":"&lt;0.15 g/24 h"},{"name":"17-Hydroxycorticosteroids","us":"Male: 3.0–10.0 mg/24 h","si":"8.2–27.6 µmol/24 h"},{"name":"","us":"Female: 2.0–8.0 mg/24 h","si":"5.5–22.0 µmol/24 h"},{"name":"17-Ketosteroids, total","us":"Male: 8–20 mg/24 h","si":"28–70 µmol/24 h"},{"name":"","us":"Female: 6–15 mg/24 h","si":"21–52 µmol/24 h"}]},{"title":"Body Mass Index (BMI)","rows":[{"name":"","us":"<br>Adult: 19–25 kg/m<sup>2</sup>","si":"<br>Adult: 19–25 kg/m<sup>2</sup>"}]}];
+
+// ── PROMPT ──
+var PROMPT='';
+function getRequestedQuestionCount(){
+  var input=document.getElementById('questionCount');
+  if(!input)return DEFAULT_QUESTION_COUNT;
+  var raw=String(input.value||'').trim();
+  if(!raw)return DEFAULT_QUESTION_COUNT;
+  var parsed=parseInt(raw,10);
+  if(!Number.isFinite(parsed))return DEFAULT_QUESTION_COUNT;
+  return Math.max(1,Math.min(MAX_AI_QUESTION_COUNT,parsed));
+}
+function normalizeQuestionCountInput(){
+  var input=document.getElementById('questionCount');
+  var count=getRequestedQuestionCount();
+  if(input)input.value=String(count);
+  return count;
+}
+function buildPrompt(){
+  var count=getRequestedQuestionCount();
+  var quizName=document.getElementById('quizName').value.trim();
+  var quizNameRule=quizName
+    ? '- Use this exact top-level "name": '+JSON.stringify(quizName)
+    : '- If the setup name field is blank, infer a concise quiz title from the content';
+  return `You are a medical school professor writing exam-style questions. You have TWO modes:
+
+MODE 1 — GENERATE: If I give you notes or lecture content, write quiz questions from it.
+MODE 2 — CONVERT: If I give you already-written questions in any format, convert them into the format below without changing the medical content.
+
+Output ONLY a raw JSON object — no markdown, no backticks, no explanation.
+
+{
+  "name": "Concise quiz title here",
+  "questions": [
+    {
+      "stem": "Question text here?",
+      "choices": [
+        "A. Correct answer — stay true to the diction of the professor",
+        "B. Wrong answer — make relevant with plausible detail",
+        "C. Wrong answer — make relevant with plausible detail",
+        "D. Wrong answer — make relevant with plausible detail",
+        "E. Wrong answer — make relevant with plausible detail"
+      ],
+      "correct": 0,
+      "explanation": "Why the correct answer is right. Use arrows (→) to show mechanisms.",
+      "wrongExplanations": {
+        "1": "Why B is wrong — be specific.",
+        "2": "Why C is wrong — be specific.",
+        "3": "Why D is wrong — be specific.",
+        "4": "Why E is wrong — be specific."
+      },
+      "eli5": "Explain the concept like the student is 10. Max 3 sentences."
+    }
+  ]
+}
+
+Rules:
+- Return exactly ${count} questions in the top-level "questions" array
+- Include a top-level "name" for the quiz
+${quizNameRule}
+- "correct" is a NUMBER (0=A, 1=B, 2=C, 3=D, 4=E)
+- Include a wrong explanation for every wrong choice
+- Prefer using the actual choice index as the key, so if A is wrong use "0", if B is wrong use "1", etc.
+- Vary which letter is correct — don't always use 0
+- If converting questions with fewer than 5 choices, add distractors to reach 5
+- Keep all answer choices similar in length so the correct answer is not guessable by length
+- Output ONLY the JSON object
+
+Professor-style writing notes:
+- Each vignette should usually follow this rhythm:
+  Age/sex/setting + chief complaint
+  1-2 sentences of relevant history, risk factors, or timeline
+  2-4 physical exam findings written like a clipped checklist
+  The final ask should test mechanism, localization, genetics, downstream consequence, or next step, not just the diagnosis alone
+- The diagnosis should usually be inferable from the exam checklist alone by pattern recognition, but the actual question should ask one rung higher
+- Distractors must come from the same answer category as the correct answer
+  Example: artery vs. other arteries, gene vs. other genes, nerve root vs. adjacent nerve roots, dementia subtype vs. other dementia subtypes
+- When appropriate, prefer 2-3 stacked questions built from the same clinical stem
+  Example chain: presentation -> diagnosis -> localization/genetics -> mechanism -> treatment
+- High-yield domains to emphasize:
+  UMN vs LMN vs NMJ vs myopathy localization by pattern
+  Exact genetics such as chromosome, repeat type, and gene name
+  Vascular localization, especially Circle of Willis style anatomy
+  Mechanism-of-injury to nerve or plexus localization
+  CSF profile pattern recognition
+  Vignette-to-histopathology pairing
+- Reuse high-yield concepts with slight vignette variations when the same theme is strongly emphasized in the source material
+- Keep the stem voice like a real med school professor:
+  clipped exam findings, subtle pattern-recognition clues, no giveaway diagnosis wording, occasional grounded real-world detail if it helps the vignette feel authentic
+
+MY CONTENT:
+`;
+}
+function refreshPromptText(){
+  PROMPT=buildPrompt();
+  document.getElementById('promptText').textContent=PROMPT;
+}
+function handleQuestionCountInput(){
+  refreshPromptText();
+}
+function handleQuestionCountBlur(){
+  normalizeQuestionCountInput();
+  refreshPromptText();
+}
+refreshPromptText();
+DOWNLOAD_TEMPLATE=document.documentElement.outerHTML;
+
+function copyPrompt(){
+  navigator.clipboard.writeText(PROMPT).then(function(){
+    var b=document.getElementById('copyPromptBtn');
+    b.textContent='✅ Copied!';
+    b.classList.add('ok');
+    showToast('Prompt copied! Add your content after it.','ok');
+    setTimeout(function(){
+      b.textContent='📋 Copy prompt';
+      b.classList.remove('ok');
+    },2500);
+  });
+}
+
+// ── PARSE ──
+function parseRaw(raw){
+  raw=raw.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+  try{return JSON.parse(raw);}catch(e){}
+  var objectMatch=raw.match(/\{[\s\S]*\}/);
+  if(objectMatch){try{return JSON.parse(objectMatch[0]);}catch(e){}}
+  var arrayMatch=raw.match(/\[[\s\S]*\]/);
+  if(arrayMatch){try{return JSON.parse(arrayMatch[0]);}catch(e){}}
+  return null;
+}
+function shuffle(arr){
+  var out=arr.slice();
+  for(var i=out.length-1;i>0;i--){
+    var j=Math.floor(Math.random()*(i+1));
+    var tmp=out[i];
+    out[i]=out[j];
+    out[j]=tmp;
+  }
+  return out;
+}
+function buildWrongExplanationLookup(rawChoices, rawCorrect, wrongExplanations){
+  var lookup={};
+  if(!wrongExplanations||typeof wrongExplanations!=='object')return lookup;
+  var wrongChoiceIndices=[];
+  rawChoices.forEach(function(_,idx){if(idx!==rawCorrect)wrongChoiceIndices.push(idx);});
+  var directHits=wrongChoiceIndices.filter(function(idx){return !!wrongExplanations[String(idx)];}).length;
+  var orderedHits=wrongChoiceIndices.filter(function(_,orderPos){return !!wrongExplanations[String(orderPos+1)];}).length;
+  var useOrdered=orderedHits>directHits;
+  wrongChoiceIndices.forEach(function(idx,orderPos){
+    var chosenKey=useOrdered?String(orderPos+1):String(idx);
+    if(wrongExplanations[chosenKey])lookup[String(idx)]=String(wrongExplanations[chosenKey]);
+  });
+  return lookup;
+}
+function normQ(q){
+  if(!q.stem||!Array.isArray(q.choices)||q.choices.length<2)return null;
+  var rawChoices=q.choices.map(String);
+  while(rawChoices.length<5)rawChoices.push('');
+  var rawCorrect=typeof q.correct==='number'?q.correct:(parseInt(q.correct)||0);
+  if(rawCorrect<0||rawCorrect>=rawChoices.length)rawCorrect=0;
+  var wrongLookup=buildWrongExplanationLookup(rawChoices, rawCorrect, q.wrongExplanations);
+  var choiceMeta=rawChoices.map(function(choiceText,idx){
+    return {
+      text:choiceText,
+      isCorrect:idx===rawCorrect,
+      wrongExplanation:idx!==rawCorrect&&wrongLookup[String(idx)]?wrongLookup[String(idx)]:''
+    };
+  });
+  var realChoices=choiceMeta.filter(function(choice){return choice.text.trim();});
+  var blankChoices=choiceMeta.filter(function(choice){return !choice.text.trim();});
+  var shuffledChoices=shuffle(realChoices).concat(blankChoices);
+  var nq={stem:String(q.stem),choices:[],correct:0,explanation:String(q.explanation||''),wrongExplanations:{},eli5:String(q.eli5||'')};
+  shuffledChoices.forEach(function(choice,idx){
+    nq.choices.push(choice.text);
+    if(choice.isCorrect)nq.correct=idx;
+    else if(choice.wrongExplanation)nq.wrongExplanations[String(idx)]=choice.wrongExplanation;
+  });
+  return nq;
+}
+function getNormalizedQuizPayloadFromRaw(raw){
+  var parsed=parseRaw(raw);
+  if(!parsed)return null;
+  var rawQuestions=Array.isArray(parsed)?parsed:(parsed&&typeof parsed==='object'&&Array.isArray(parsed.questions)?parsed.questions:null);
+  if(!rawQuestions)return null;
+  var valid=[];
+  rawQuestions.forEach(function(q){var nq=normQ(q);if(nq)valid.push(nq);});
+  if(!valid.length)return null;
+  var parsedName='';
+  if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed)){
+    parsedName=String(parsed.name||parsed.quizName||parsed.title||'').trim();
+  }
+  return {name:parsedName,questions:valid};
+}
+function getNormalizedQuestionsFromRaw(raw){
+  var payload=getNormalizedQuizPayloadFromRaw(raw);
+  return payload?payload.questions:null;
+}
+
+// ── UI MODE ──
+function selectLaunchUI(mode){
+  uiMode=mode==='nbme'?'nbme':'classic';
+  syncLaunchUIButtons();
+}
+function switchQuizUI(mode){
+  var next=mode==='nbme'?'nbme':'classic';
+  if(uiMode===next)return;
+  uiMode=next;
+  syncLaunchUIButtons();
+  if(questions.length){
+    switchView(getQuizViewId());
+    renderQ();
+    showToast(next==='nbme'?'NBME / NBOME layout enabled.':'UNE layout enabled.','ok');
+  }
+}
+function getQuizViewId(){
+  return uiMode==='nbme'?'viewQuizNbme':'viewQuiz';
+}
+function syncLaunchUIButtons(){
+  var classicBtn=document.getElementById('uiModeClassicBtn');
+  var nbmeBtn=document.getElementById('uiModeNbmeBtn');
+  classicBtn.classList.toggle('active',uiMode==='classic');
+  nbmeBtn.classList.toggle('active',uiMode==='nbme');
+}
+
+// ── LAB VALUES ──
+function renderLabs(){
+  document.getElementById('labUnitsUs').classList.toggle('active',labUnitMode==='us');
+  document.getElementById('labUnitsSi').classList.toggle('active',labUnitMode==='si');
+  document.getElementById('labTables').innerHTML=LAB_SECTIONS.map(function(section){
+    var rows=section.rows.map(function(row){
+      if(row.group)return `<tr class="lab-group"><td colspan="2">${row.group}</td></tr>`;
+      return `<tr><td class="${row.name?'':'continuation'}">${row.name||'—'}</td><td>${labUnitMode==='si'?row.si:row.us}</td></tr>`;
+    }).join('');
+    return `<table class="lab-table"><thead><tr><th>${section.title}</th><th>${labUnitMode==='si'?'SI Reference':'Reference Range'}</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }).join('');
+}
+function openLabs(){
+  renderLabs();
+  document.getElementById('labModal').classList.add('open');
+}
+function closeLabs(){
+  document.getElementById('labModal').classList.remove('open');
+}
+function setLabUnits(unit){
+  labUnitMode=unit==='si'?'si':'us';
+  renderLabs();
+}
+
+// ── QUIZ LIFECYCLE ──
+function setQuizTitle(name){
+  document.getElementById('qtName').textContent=name;
+  document.getElementById('nbQuizTitle').textContent=name;
+}
+function getQuizTitle(){
+  return document.getElementById('qtName').textContent.trim()||document.getElementById('quizName').value.trim()||'Custom Quiz';
+}
+function resetQuizState(withTimerReset){
+  answers={};
+  selected={};
+  marked={};
+  stemMarkup={};
+  choiceMarkup={};
+  NC=0;
+  NI=0;
+  CQ=0;
+  examSubmitted=false;
+  reviewOpen=false;
+  summaryVisible=false;
+  finishBannerMinimized=false;
+  toolMode='';
+  if(withTimerReset)resetTimer();else updTimer();
+  syncToolButtons();
+  syncModeButtons();
+  syncMarkButtons();
+  updScore();
+}
+function startQuiz(valid,name){
+  questions=valid;
+  quizMode='learn';
+  resetQuizState(true);
+  applyFontSize();
+  document.getElementById('quizName').value=name||'Custom Quiz';
+  setQuizTitle(name||'Custom Quiz');
+  document.getElementById('errMsg').className='err-msg';
+  renderItemSelectors();
+  switchView(getQuizViewId());
+  renderQ();
+}
+function getQuizPayload(){
+  if(Array.isArray(questions)&&questions.length){
+    return {name:getQuizTitle(),questions:questions};
+  }
+  var raw=document.getElementById('pasteArea').value.trim();
+  if(!raw)return null;
+  var parsedPayload=getNormalizedQuizPayloadFromRaw(raw);
+  if(!parsedPayload)return null;
+  var typedName=document.getElementById('quizName').value.trim();
+  return {name:typedName||parsedPayload.name||'Custom Quiz',questions:parsedPayload.questions};
+}
+function buildDownloadFileName(name){
+  var safeName=String(name||'Custom Quiz')
+    .replace(/\.html?$/i,'')
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim()
+    .replace(/\.+$/,'');
+  if(!safeName)safeName='Custom Quiz';
+  return safeName.slice(0,96)+'.html';
+}
+function toEmbeddedJSONString(value){
+  return JSON.stringify(value).replace(/<\/script/gi,'<\\/script').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
+}
+function buildDownloadHTML(payload){
+  return DOWNLOAD_TEMPLATE
+    .replace('"__QUIZ_BUILDER_PRELOADED_NAME__"', toEmbeddedJSONString(payload.name||'Custom Quiz'))
+    .replace('"__QUIZ_BUILDER_PRELOADED_QUESTIONS__"', toEmbeddedJSONString(JSON.stringify(payload.questions||[])))
+    .replace('"__QUIZ_BUILDER_PRELOADED_UI_MODE__"', toEmbeddedJSONString('nbme'));
+}
+function triggerQuizDownload(blob,fileName){
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;
+  a.download=fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+}
+function isSafariLikeBrowser(){
+  var ua=navigator.userAgent||'';
+  return /Safari/i.test(ua)&&!/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS|Android/i.test(ua);
+}
+function getDownloadFallbackPrompt(fileName){
+  if(isSafariLikeBrowser()){
+    return 'This browser cannot open a save-location picker from this local quiz page, so Safari will use its normal download flow instead.\n\nIf you want macOS to ask where to save each quiz, open Safari > Settings > General and set "File download location" to "Ask for each download".\n\nDownload "'+fileName+'" now?';
+  }
+  return 'This browser does not support choosing a save location directly from this quiz page.\n\nI can still download "'+fileName+'" using your browser\'s normal download flow.\n\nContinue?';
+}
+async function downloadQuiz(){
+  var payload=getQuizPayload();
+  if(!payload){
+    showErr('Paste a valid quiz first so I have something to save.');
+    return;
+  }
+  var html=buildDownloadHTML(payload);
+  var blob=new Blob([html],{type:'text/html'});
+  var fileName=buildDownloadFileName(payload.name);
+  if(typeof window.showSaveFilePicker==='function'){
+    try{
+      var handle=await window.showSaveFilePicker({
+        suggestedName:fileName,
+        types:[{
+          description:'HTML Quiz File',
+          accept:{'text/html':['.html']}
+        }]
+      });
+      var writable=await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      document.getElementById('errMsg').className='err-msg';
+      showToast('Saved your quiz file.','ok');
+      return;
+    }catch(err){
+      if(err&&err.name==='AbortError')return;
+    }
+  }
+  if(!window.confirm(getDownloadFallbackPrompt(fileName)))return;
+  triggerQuizDownload(blob,fileName);
+  document.getElementById('errMsg').className='err-msg';
+  showToast(isSafariLikeBrowser()?'Safari download started. Use "Ask for each download" in Safari settings to choose the save location each time.':'Browser download started.','ok');
+}
+function hydratePreloadedQuiz(){
+  var hasPreloadedQuestions=PRELOADED_QUESTIONS_JSON!=="__QUIZ_BUILDER_PRELOADED_QUESTIONS__";
+  if(PRELOADED_UI_MODE!=="__QUIZ_BUILDER_PRELOADED_UI_MODE__")selectLaunchUI(PRELOADED_UI_MODE);
+  else if(hasPreloadedQuestions)selectLaunchUI('nbme');
+  if(PRELOADED_QUIZ_NAME!=="__QUIZ_BUILDER_PRELOADED_NAME__")document.getElementById('quizName').value=PRELOADED_QUIZ_NAME;
+  if(PRELOADED_QUESTIONS_JSON==="__QUIZ_BUILDER_PRELOADED_QUESTIONS__")return;
+  try{
+    var preloaded=JSON.parse(PRELOADED_QUESTIONS_JSON);
+    if(!Array.isArray(preloaded)||!preloaded.length)return;
+    document.getElementById('pasteArea').value=JSON.stringify(preloaded,null,2);
+    startQuiz(preloaded,PRELOADED_QUIZ_NAME||'Custom Quiz');
+    showToast('Saved quiz loaded.','ok');
+  }catch(e){}
+}
+function launchQuiz(){
+  var raw=document.getElementById('pasteArea').value.trim();
+  if(!raw){showErr('Paste your AI response first.');return;}
+  var parsedPayload=getNormalizedQuizPayloadFromRaw(raw);
+  if(!parsedPayload){showErr("Couldn't read the format. Make sure you copied the full response from your AI.");return;}
+  var typedName=document.getElementById('quizName').value.trim();
+  startQuiz(parsedPayload.questions,typedName||parsedPayload.name||'Custom Quiz');
+}
+
+// ── STATE HELPERS ──
+function stripChoiceLabel(text){
+  return String(text||'').replace(/^[A-E]\.\s*/i,'');
+}
+function getStemHTML(index){
+  return stemMarkup[index]!=null?stemMarkup[index]:questions[index].stem;
+}
+function ensureChoiceMarkup(index){
+  if(!choiceMarkup[index])choiceMarkup[index]=[];
+  return choiceMarkup[index];
+}
+function getChoiceHTML(index,choiceIndex){
+  var arr=ensureChoiceMarkup(index);
+  return arr[choiceIndex]!=null?arr[choiceIndex]:stripChoiceLabel(questions[index].choices[choiceIndex]);
+}
+function getSelectedChoice(index){
+  if(answers[index]&&answers[index].s!==null&&answers[index].s!==undefined)return answers[index].s;
+  return selected[index];
+}
+function getAnsweredCount(){
+  return examSubmitted?questions.length:(quizMode==='exam'?Object.keys(selected).length:Object.keys(answers).length);
+}
+function getMarkedCount(){
+  return Object.keys(marked).filter(function(key){return !!marked[key];}).length;
+}
+function isQuizComplete(){
+  return (quizMode==='learn'&&questions.length&&Object.keys(answers).length===questions.length)||(quizMode==='exam'&&examSubmitted);
+}
+function updateScoreCounts(){
+  NC=0;
+  NI=0;
+  Object.keys(answers).forEach(function(key){
+    if(answers[key].r==='c')NC++;
+    else NI++;
+  });
+}
+function getScorePercent(){
+  var denom=(quizMode==='exam'&&examSubmitted)?questions.length:(NC+NI);
+  return denom?Math.round(NC/denom*100):'—';
+}
+function getAnswerStateMeta(ans){
+  if(!ans)return {label:'Pending',className:'unanswered'};
+  if(ans.r==='c')return {label:'Correct',className:'correct'};
+  if(ans.r==='u')return {label:'No Answer',className:'unanswered'};
+  return {label:'Incorrect',className:'incorrect'};
+}
+function buildSummaryStatsHTML(){
+  var percent=getScorePercent();
+  return `<div class="sum-stats">
+    <div class="sum-stat"><div class="sum-stat-label">Score</div><div class="sum-stat-value">${percent==='—'?'—':percent+'%'}</div></div>
+    <div class="sum-stat"><div class="sum-stat-label">Correct</div><div class="sum-stat-value">${NC}</div></div>
+    <div class="sum-stat"><div class="sum-stat-label">Incorrect</div><div class="sum-stat-value">${NI}</div></div>
+    <div class="sum-stat"><div class="sum-stat-label">Questions</div><div class="sum-stat-value">${questions.length}</div></div>
+  </div>`;
+}
+function buildReviewSheetItemsHTML(){
+  return questions.map(function(q,index){
+    var ans=answers[index];
+    var meta=getAnswerStateMeta(ans);
+    var correctLetter=LETTERS[q.correct]||String.fromCharCode(65+q.correct);
+    return `<article class="sum-item ${meta.className}">
+      <div class="sum-meta">
+        <div class="sum-num">Question ${index+1}</div>
+        <div class="sum-state">${meta.label}</div>
+        <div class="sum-answer">Correct Answer: ${correctLetter}</div>
+      </div>
+      <div class="sum-body">
+        <div class="sum-section">
+          <div class="sum-label">Correct Answer Explanation</div>
+          <div class="sum-text">${q.explanation||'No explanation provided.'}</div>
+        </div>
+        <div class="sum-section">
+          <div class="sum-label">ELI5</div>
+          <div class="sum-text">${q.eli5||'No ELI5 summary provided.'}</div>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+function buildReviewSheetHTML(forPrint){
+  var title=getQuizTitle();
+  var actionHTML=forPrint?'':`<div class="sum-actions"><button class="sum-btn" type="button" onclick="hideSummarySheet()">← Back to Questions</button><button class="sum-btn primary" type="button" onclick="printSummarySheet()">🖨 Print Summary</button></div>`;
+  return `<section class="sum-sheet" id="summarySheet">
+    <div class="sum-head">
+      <div>
+        <div class="sum-kicker">Quiz Review Sheet</div>
+        <h2 class="sum-title">${title}</h2>
+        <div class="sum-sub">Question-by-question review showing only the correct-answer explanation and the ELI5 summary for quick post-quiz review.</div>
+      </div>
+      ${actionHTML}
+    </div>
+    ${buildSummaryStatsHTML()}
+    <div class="sum-list">${buildReviewSheetItemsHTML()}</div>
+  </section>`;
+}
+function getSummaryPrintStyles(){
+  return `
+    body{margin:0;padding:28px;background:#fff;color:#1E1E20;font-family:Arial,Helvetica,sans-serif}
+    .sum-sheet{border:1px solid #d8dce3;border-radius:18px;overflow:hidden}
+    .sum-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:22px 24px 18px;border-bottom:1px solid #e4e7ec;background:#f8fafc}
+    .sum-kicker{font-family:Consolas,monospace;font-size:11px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:#6B7689;margin-bottom:8px}
+    .sum-title{font-size:30px;line-height:1.08;color:#12203C;margin:0 0 8px}
+    .sum-sub{font-size:14px;line-height:1.6;color:#3E4555;max-width:68ch}
+    .sum-stats{display:flex;gap:12px;flex-wrap:wrap;padding:18px 24px;border-bottom:1px solid #e4e7ec;background:#fbf8f3}
+    .sum-stat{min-width:140px;padding:14px 16px;border-radius:14px;border:1px solid #e4e7ec;background:#fff}
+    .sum-stat-label{font-size:10px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#6B7689;margin-bottom:8px}
+    .sum-stat-value{font-size:30px;line-height:1;color:#12203C;font-weight:700}
+    .sum-list{display:grid;gap:14px;padding:22px 24px}
+    .sum-item{display:grid;grid-template-columns:150px minmax(0,1fr);gap:18px;padding:18px;border-radius:16px;border:1px solid #e4e7ec;background:#fff;break-inside:avoid-page;page-break-inside:avoid}
+    .sum-item.correct{background:#f6fcf8}
+    .sum-item.incorrect{background:#fff8f8}
+    .sum-item.unanswered{background:#fffaf1}
+    .sum-meta{display:flex;flex-direction:column;gap:10px}
+    .sum-num,.sum-state{display:inline-flex;align-items:center;justify-content:center;width:max-content}
+    .sum-num{min-height:38px;padding:0 14px;border-radius:999px;background:#eef2f6;font-family:Consolas,monospace;font-size:12px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#12203C}
+    .sum-state{min-height:30px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+    .sum-item.correct .sum-state{background:#E8F5EE;color:#2D8659}
+    .sum-item.incorrect .sum-state{background:#FDF0F0;color:#C44040}
+    .sum-item.unanswered .sum-state{background:#FEF5E6;color:#C07B1A}
+    .sum-answer{font-size:13px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:#3E4555}
+    .sum-body{display:grid;gap:12px}
+    .sum-section{padding:14px 16px;border-radius:14px;border:1px solid #eceff3;background:#faf7f1}
+    .sum-label{font-family:Consolas,monospace;font-size:10px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#6B7689;margin-bottom:8px}
+    .sum-text{font-size:14px;line-height:1.62;color:#1E1E20}
+  `;
+}
+function printSummarySheet(){
+  if(!isQuizComplete())return;
+  var printWindow=window.open('','_blank','noopener,noreferrer,width=1120,height=900');
+  if(!printWindow){
+    showToast('Allow pop-ups so I can open the printable review sheet.','err');
+    return;
+  }
+  printWindow.document.open();
+  printWindow.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${getQuizTitle()} — Review Sheet</title><style>${getSummaryPrintStyles()}</style></head><body>${buildReviewSheetHTML(true)}</body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(function(){
+    printWindow.print();
+  },250);
+}
+function buildNbmeCompletionViewHTML(){
+  var finishHTML=buildFinishHTML({allowMinimize:true});
+  return `<div class="sum-view" id="completionViewTop">${finishHTML}${buildNbmeQuestion()}</div>`;
+}
+function buildSummaryViewHTML(){
+  var finishHTML=buildFinishHTML({allowMinimize:true});
+  return `<div class="sum-view" id="summaryViewTop">${finishHTML}${buildReviewSheetHTML(false)}</div>`;
+}
+function scrollQuizViewportTop(){
+  window.scrollTo({top:0,behavior:'smooth'});
+  var nbScroller=document.querySelector('.nb-question-scroll');
+  if(nbScroller)nbScroller.scrollTo({top:0,behavior:'smooth'});
+}
+function scrollNbmeRail(direction){
+  var scroller=document.getElementById('nbRailScroll');
+  if(!scroller)return;
+  scroller.scrollBy({top:direction*180,behavior:'smooth'});
+}
+function syncNbmeRailArrows(){
+  var scroller=document.getElementById('nbRailScroll');
+  var upBtn=document.getElementById('nbRailUpBtn');
+  var downBtn=document.getElementById('nbRailDownBtn');
+  if(!scroller||!upBtn||!downBtn)return;
+  var maxScroll=Math.max(0,scroller.scrollHeight-scroller.clientHeight);
+  var hasOverflow=maxScroll>4;
+  upBtn.style.visibility=hasOverflow?'visible':'hidden';
+  downBtn.style.visibility=hasOverflow?'visible':'hidden';
+  upBtn.disabled=!hasOverflow||scroller.scrollTop<=2;
+  downBtn.disabled=!hasOverflow||scroller.scrollTop>=maxScroll-2;
+}
+function keepCurrentRailItemVisible(){
+  var scroller=document.getElementById('nbRailScroll');
+  if(!scroller)return;
+  var current=scroller.querySelector('.nb-rail-btn.current');
+  if(current)current.scrollIntoView({block:'nearest'});
+}
+function toggleSummaryPanel(){
+  if(!isQuizComplete())return;
+  if(summaryVisible)hideSummarySheet();
+  else viewSummarySheet();
+}
+function viewSummarySheet(){
+  if(!isQuizComplete())return;
+  finishBannerMinimized=false;
+  summaryVisible=true;
+  renderQ();
+  var target=document.getElementById(uiMode==='nbme'?'summaryViewTop':'summarySheet');
+  if(!target)return;
+  target.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function hideSummarySheet(){
+  if(!summaryVisible)return;
+  summaryVisible=false;
+  renderQ();
+  scrollQuizViewportTop();
+}
+function minimizeFinishBanner(){
+  if(finishBannerMinimized)return;
+  finishBannerMinimized=true;
+  renderQ();
+}
+function expandFinishBanner(){
+  if(!finishBannerMinimized)return;
+  finishBannerMinimized=false;
+  renderQ();
+}
+function toggleFinishBanner(){
+  finishBannerMinimized=!finishBannerMinimized;
+  renderQ();
+}
+function buildFinishHTML(options){
+  options=options||{};
+  var allowMinimize=!!options.allowMinimize;
+  var total=questions.length||1;
+  var pct=Math.round(NC/total*100);
+  var msg=pct>=80?'🎉 Strong work!':pct>=60?'📈 Getting there.':'📚 Keep reviewing.';
+  var summaryBtn=summaryVisible
+    ? '<button class="fin-btn" onclick="hideSummarySheet()">← Back to Questions</button>'
+    : '<button class="fin-btn" onclick="viewSummarySheet()">📋 View Summary</button>';
+  var toggleBtn=allowMinimize?`<button class="fin-toggle" type="button" aria-label="${finishBannerMinimized?'Expand score card':'Minimize score card'}" title="${finishBannerMinimized?'Expand':'Minimize'}" onclick="toggleFinishBanner()">${finishBannerMinimized?'+':'−'}</button>`:'';
+  var mainHTML=finishBannerMinimized?'':`<div class="fin-main">
+    <div class="fin-pct">${pct}%</div>
+    <div class="fin-pct-lbl">Final Score</div>
+    <div class="fin-msg">${msg}</div>
+    <div class="fin-sub">${NC} correct · ${NI} incorrect · ${questions.length} questions</div>
+  </div>`;
+  return `<div class="fin${finishBannerMinimized?' min':''}">
+    ${toggleBtn}
+    ${mainHTML}
+    <div class="fin-btns">
+      ${summaryBtn}
+      <button class="fin-btn" onclick="printSummarySheet()">🖨 Print Summary</button>
+      <button class="fin-btn" onclick="resetQuiz()">↺ Retake</button>
+      <button class="fin-btn" onclick="exitQuiz()">✕ Exit</button>
+    </div>
+  </div>`;
+}
+function renderFinishBanners(){
+  var html=isQuizComplete()?buildFinishHTML({allowMinimize:true}):'';
+  document.getElementById('finBanner').innerHTML=html;
+  document.getElementById('nbFinishBanner').innerHTML='';
+}
+
+// ── RENDERING ──
+function renderItemSelectors(){
+  var options=questions.map(function(_,i){return `<option value="${i}">${i+1}</option>`;}).join('');
+  document.getElementById('nbItemSelect').innerHTML=options;
+}
+function syncModeButtons(){
+  document.getElementById('modeLearn').classList.toggle('active',quizMode==='learn');
+  document.getElementById('modeExam').classList.toggle('active',quizMode==='exam');
+  document.getElementById('nbModeLearn').classList.toggle('active',quizMode==='learn');
+  document.getElementById('nbModeExam').classList.toggle('active',quizMode==='exam');
+  document.getElementById('qtSubmitBtn').style.display=quizMode==='exam'&&!examSubmitted?'':'none';
+  var endBtn=document.getElementById('nbReviewBtn');
+  if(quizMode!=='exam'){
+    endBtn.textContent='Testing Mode Only';
+    endBtn.disabled=true;
+  }else if(examSubmitted){
+    endBtn.textContent='Exam Submitted';
+    endBtn.disabled=true;
+  }else{
+    endBtn.textContent=reviewOpen?'Submit Exam':'Review / End Block';
+    endBtn.disabled=false;
+  }
+}
+function syncSummaryButtons(){
+  var btn=document.getElementById('nbSummaryBtn');
+  if(!btn)return;
+  var complete=isQuizComplete();
+  btn.disabled=!complete;
+  btn.classList.toggle('active',complete&&summaryVisible);
+  btn.textContent=complete?(summaryVisible?'Hide Summary':'See Score & Summary'):'See Score & Summary';
+}
+function syncToolButtons(){
+  document.getElementById('hlTool').classList.toggle('active',toolMode==='hl');
+  document.getElementById('stTool').classList.toggle('active',toolMode==='st');
+  document.getElementById('nbHighlightBtn').classList.toggle('active',toolMode==='hl');
+  document.getElementById('nbHighlightBtn').classList.toggle('hl',toolMode==='hl');
+  document.getElementById('nbStrikeBtn').classList.toggle('active',toolMode==='st');
+  document.getElementById('nbStrikeBtn').classList.toggle('st',toolMode==='st');
+}
+function syncMarkButtons(){
+  var isMarked=!!marked[CQ];
+  document.getElementById('qtMarkBtn').classList.toggle('active',isMarked);
+  document.getElementById('qtMarkBtn').textContent=isMarked?'⚑ Marked':'⚑ Mark';
+  document.getElementById('nbMarkBtn').classList.toggle('active',isMarked);
+  document.getElementById('nbMarkBtn').textContent=isMarked?'⚑ Marked':'⚑ Mark';
+}
+function updScore(){
+  document.getElementById('sC').textContent=NC;
+  document.getElementById('sI').textContent=NI;
+  document.getElementById('sP').textContent=getScorePercent()==='—'?'—':getScorePercent()+'%';
+  document.getElementById('nbScoreCorrect').textContent=NC;
+  document.getElementById('nbScoreIncorrect').textContent=NI;
+  document.getElementById('nbScorePercent').textContent=getScorePercent()==='—'?'—':getScorePercent()+'%';
+}
+function buildExplanationHTML(q,ans){
+  if(!ans)return '';
+  var correctLetter=LETTERS[q.correct];
+  var selectedLetter=(ans.s!==null&&ans.s!==undefined)?LETTERS[ans.s]:'';
+  var myWrong='';
+  if(ans.s===null){
+    myWrong='<div class="exs exw"><div class="exl">✗ No Answer Selected</div><div class="ext">This question was left unanswered before the quiz was submitted.</div></div>';
+  }else if(ans.s!==q.correct&&q.wrongExplanations&&q.wrongExplanations[String(ans.s)]){
+    myWrong=`<div class="exs exw"><div class="exl">✗ Why ${selectedLetter} is Wrong</div><div class="ext">${q.wrongExplanations[String(ans.s)]}</div></div>`;
+  }
+  var others='';
+  if(q.wrongExplanations){
+    var otherKeys=Object.keys(q.wrongExplanations).filter(function(key){
+      return +key!==q.correct&&(ans.s===null||+key!==ans.s)&&q.wrongExplanations[key];
+    });
+    if(otherKeys.length){
+      others=`<div class="exs exo"><div class="exl">✗ Other Wrong Choices</div><div class="ext">${otherKeys.map(function(key){
+        return `<div class="wce"><strong>${LETTERS[+key]}:</strong> ${q.wrongExplanations[key]}</div>`;
+      }).join('')}</div></div>`;
+    }
+  }
+  var eli5=q.eli5?`<div class="exs exe"><div class="exl">💡 ELI5</div><div class="ext">${q.eli5}</div></div>`:'';
+  return `<div class="exb vis">
+    <div class="exs exc"><div class="exl">✓ Why ${correctLetter} is Correct</div><div class="ext">${q.explanation}</div></div>
+    ${myWrong}${others}${eli5}
+  </div>`;
+}
+function buildClassicDots(){
+  return questions.map(function(_,i){
+    var classes=['qd'];
+    if(i===CQ)classes.push('on');
+    if(answers[i])classes.push(answers[i].r==='c'?'dc':'di');
+    else if(selected[i]!==undefined)classes.push('asel');
+    if(marked[i])classes.push('mk');
+    return `<button class="${classes.join(' ')}" onclick="goQ(${i})" title="Q${i+1}"></button>`;
+  }).join('');
+}
+function buildClassicQuestion(){
+  var q=questions[CQ];
+  var total=questions.length;
+  var ans=answers[CQ];
+  var sel=getSelectedChoice(CQ);
+  var isExam=quizMode==='exam';
+  var progress=((CQ+1)/total*100).toFixed(1);
+  var choicesHTML=q.choices.map(function(choice,ci){
+    var classes=['ac'];
+    if(ans){
+      classes.push('dis');
+      if(ci===q.correct)classes.push('cor');
+      else if(ans.s!==null&&ci===ans.s)classes.push('inc');
+    }else if(sel===ci){
+      classes.push('sel');
+    }
+    return `<div class="${classes.join(' ')}" onclick="pick(${ci})">
+      <div class="cl">${LETTERS[ci]||String.fromCharCode(65+ci)}</div>
+      <div class="ac-txt" data-choice-html="${ci}">${getChoiceHTML(CQ,ci)}</div>
+    </div>`;
+  }).join('');
+  var submitLabel=isExam?'Submit Question':'Submit Answer';
+  var submitHTML=!ans?`<div class="submit-row"><button class="submit-btn" onclick="submitAns()"${sel!==undefined?'':' disabled'}>${submitLabel}</button></div>`:'';
+  var feedbackHTML=ans?buildExplanationHTML(q,ans):'';
+  var qnumClass='qnum'+(marked[CQ]?' marked':'');
+  var qnumText=`Question ${CQ+1} of ${total}${marked[CQ]?' • Flagged':''}`;
+  var mainHTML=`<div class="q-main">
+      <div class="${qnumClass}">${qnumText}</div>
+      <div class="qstem" id="stemEl" data-stem-html="1">${getStemHTML(CQ)}</div>
+      <div class="ach" id="achEl">${choicesHTML}</div>
+      ${submitHTML}
+    </div>`;
+  var layoutHTML=ans
+    ? `<div class="q-review-grid has-feedback">${mainHTML}<aside class="q-feedback">${feedbackHTML}</aside></div>`
+    : `<div class="q-review-grid">${mainHTML}</div>`;
+  return `<div class="qcd">
+    <div class="qpg"><div class="qpf" style="width:${progress}%"></div></div>
+    <div class="qbd">
+      ${layoutHTML}
+    </div>
+    <div class="qnv">
+      <button class="nb" onclick="prevQ()"${CQ===0?' disabled':''}>← Prev</button>
+      <div class="nav-dots">${buildClassicDots()}</div>
+      <button class="nb pr" onclick="nextQ()"${CQ===total-1?' disabled':''}>Next →</button>
+    </div>
+  </div>`;
+}
+function buildNbmeRail(){
+  return questions.map(function(_,i){
+    var classes=['nb-rail-btn'];
+    if(i===CQ&&!reviewOpen)classes.push('current');
+    if(answers[i]||selected[i]!==undefined)classes.push('answered');
+    if(marked[i])classes.push('marked');
+    return `<button class="${classes.join(' ')}" type="button" onclick="goQ(${i})" aria-label="Go to question ${i+1}">${i+1}</button>`;
+  }).join('');
+}
+function buildNbmeQuestion(){
+  var q=questions[CQ];
+  var ans=answers[CQ];
+  var sel=getSelectedChoice(CQ);
+  var isExam=quizMode==='exam';
+  var submitLabel=isExam?'Submit Question':'Submit Answer';
+  var answersHTML=q.choices.map(function(choice,ci){
+    var classes=['nb-answer-row'];
+    if(ans)classes.push('locked');
+    if(sel===ci)classes.push('selected');
+    if(ans){
+      if(ci===q.correct)classes.push('correct');
+      else if(ans.s!==null&&ci===ans.s)classes.push('incorrect');
+    }
+    return `<div class="${classes.join(' ')}" onclick="pick(${ci})">
+      <div class="nb-answer-glyph">${LETTERS[ci]||String.fromCharCode(65+ci)}</div>
+      <div class="nb-answer-copy"><strong>${LETTERS[ci]||String.fromCharCode(65+ci)}.</strong> <span data-choice-html="${ci}">${getChoiceHTML(CQ,ci)}</span></div>
+    </div>`;
+  }).join('');
+  var submitHTML=!ans?`<div class="nb-submit-row"><button class="nb-submit-btn" onclick="submitAns()"${sel!==undefined?'':' disabled'}>${submitLabel}</button></div>`:'';
+  var feedbackHTML=ans?buildExplanationHTML(q,ans):'';
+  var mainHTML=`<div class="nb-question-main">
+    <div class="nb-question-label">QUESTION ${CQ+1}</div>
+    <div class="nb-question-stem" id="nbStemEl" data-stem-html="1">${getStemHTML(CQ)}</div>
+    <div class="nb-answers">${answersHTML}</div>
+    ${submitHTML}
+  </div>`;
+  var layoutClass=ans?'nb-question-layout has-feedback':'nb-question-layout';
+  var sideHTML=ans?`<aside class="nb-question-side">${feedbackHTML}</aside>`:'';
+  return `<div class="nb-question-card${ans?' has-feedback':''}">
+    <div class="${layoutClass}">
+      ${mainHTML}
+      ${sideHTML}
+    </div>
+  </div>`;
+}
+function buildNbmeReview(){
+  var answered=Object.keys(selected).length;
+  var incomplete=questions.length-answered;
+  var flagged=getMarkedCount();
+  var rows=questions.map(function(q,i){
+    var answer=selected[i]===undefined?'—':LETTERS[selected[i]];
+    return `<tr>
+      <td><button class="nb-review-jump" type="button" onclick="goQ(${i})">${i+1}</button></td>
+      <td>${selected[i]===undefined?'Incomplete':'Answered'}</td>
+      <td>${answer}</td>
+      <td>${marked[i]?'Yes':'No'}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="nb-review-wrap">
+    <h2>Review This Block</h2>
+    <p>Check your completion status before you submit the exam. Select a question number to jump back to it.</p>
+    <div class="nb-review-summary">
+      <div class="nb-summary-chip">Answered<strong>${answered}</strong></div>
+      <div class="nb-summary-chip">Incomplete<strong>${incomplete}</strong></div>
+      <div class="nb-summary-chip">Marked<strong>${flagged}</strong></div>
+    </div>
+    <table class="nb-review-table">
+      <thead><tr><th>Question</th><th>Status</th><th>Selected Answer</th><th>Marked</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="nb-review-actions">
+      <button class="nb-review-back" type="button" onclick="reviewOpen=false;renderQ()">Back to Questions</button>
+    </div>
+  </div>`;
+}
+function renderClassicView(){
+  document.getElementById('qtSubmitBtn').style.display=quizMode==='exam'&&!examSubmitted?'':'none';
+  document.getElementById('qArea').innerHTML=(isQuizComplete()&&summaryVisible)?buildReviewSheetHTML(false):buildClassicQuestion();
+}
+function renderNbmeView(){
+  var total=questions.length;
+  var answered=getAnsweredCount();
+  var statusMeta;
+  if(quizMode==='exam'&&!examSubmitted){
+    statusMeta=answered+' answered • '+getMarkedCount()+' marked';
+  }else{
+    statusMeta='Correct '+NC+' • Incorrect '+NI+' • Score '+(getScorePercent()==='—'?'—':getScorePercent()+'%');
+  }
+  document.getElementById('nbItemIndicator').textContent=reviewOpen?'Block Review':'Question: '+(CQ+1)+' of '+total;
+  document.getElementById('nbStatusMeta').textContent=statusMeta;
+  document.getElementById('nbItemSelect').value=String(CQ);
+  document.getElementById('nbPrevBtn').disabled=CQ===0||reviewOpen;
+  document.getElementById('nbNextBtn').disabled=CQ===total-1||reviewOpen;
+  document.getElementById('nbRailItems').innerHTML=buildNbmeRail();
+  if(isQuizComplete()&&summaryVisible)document.getElementById('nbContent').innerHTML=buildSummaryViewHTML();
+  else if(isQuizComplete())document.getElementById('nbContent').innerHTML=buildNbmeCompletionViewHTML();
+  else document.getElementById('nbContent').innerHTML=(reviewOpen&&quizMode==='exam'&&!examSubmitted)?buildNbmeReview():buildNbmeQuestion();
+  keepCurrentRailItemVisible();
+  syncNbmeRailArrows();
+}
+function renderQ(){
+  if(!questions.length)return;
+  renderFinishBanners();
+  syncModeButtons();
+  syncSummaryButtons();
+  syncToolButtons();
+  syncMarkButtons();
+  updScore();
+  renderItemSelectors();
+  if(uiMode==='nbme')renderNbmeView();
+  else renderClassicView();
+}
+
+// ── QUIZ ACTIONS ──
+function pick(ci){
+  if(answers[CQ])return;
+  summaryVisible=false;
+  selected[CQ]=ci;
+  reviewOpen=false;
+  renderQ();
+}
+function submitAns(){
+  if(selected[CQ]===undefined||examSubmitted)return;
+  if(quizMode==='exam'){
+    reviewOpen=false;
+    summaryVisible=false;
+    if(CQ<questions.length-1){
+      CQ++;
+      renderQ();
+      scrollQuizViewportTop();
+    }else{
+      renderQ();
+      showToast('Last question saved. Use Review / End Block or Submit Exam when you are ready.','ok');
+    }
+    return;
+  }
+  if(answers[CQ])return;
+  var ok=selected[CQ]===questions[CQ].correct;
+  answers[CQ]={s:selected[CQ],r:ok?'c':'i'};
+  updateScoreCounts();
+  renderQ();
+  if(quizMode==='learn'&&Object.keys(answers).length===questions.length)setTimeout(showFinish,300);
+}
+function submitExam(){
+  if(quizMode!=='exam'||examSubmitted)return;
+  var unanswered=questions.length-Object.keys(selected).length;
+  var msg=unanswered>0?'You still have '+unanswered+' unanswered question'+(unanswered===1?'':'s')+'. Submit anyway?':'Submit your exam now?';
+  if(!window.confirm(msg))return;
+  answers={};
+  NC=0;
+  NI=0;
+  questions.forEach(function(q,idx){
+    if(selected[idx]===undefined){
+      answers[idx]={s:null,r:'u'};
+      NI++;
+    }else{
+      var ok=selected[idx]===q.correct;
+      answers[idx]={s:selected[idx],r:ok?'c':'i'};
+      if(ok)NC++;else NI++;
+    }
+  });
+  examSubmitted=true;
+  reviewOpen=false;
+  toolMode='';
+  renderQ();
+  showFinish();
+  showToast('Exam submitted.','ok');
+}
+function handleNbmeEndAction(){
+  if(quizMode!=='exam'||examSubmitted)return;
+  if(reviewOpen)submitExam();
+  else{
+    reviewOpen=true;
+    renderQ();
+  }
+}
+function prevQ(){if(CQ>0){CQ--;reviewOpen=false;summaryVisible=false;renderQ();}}
+function nextQ(){if(CQ<questions.length-1){CQ++;reviewOpen=false;summaryVisible=false;renderQ();}}
+function goQ(i){
+  if(i<0||i>=questions.length)return;
+  CQ=i;
+  reviewOpen=false;
+  summaryVisible=false;
+  renderQ();
+}
+function toggleMark(){
+  if(!questions.length)return;
+  summaryVisible=false;
+  if(marked[CQ])delete marked[CQ];
+  else marked[CQ]=true;
+  renderQ();
+}
+function setMode(mode){
+  if(mode===quizMode)return;
+  var hasProgress=Object.keys(selected).length>0||Object.keys(answers).length>0||examSubmitted;
+  if(hasProgress&&!window.confirm('Switching modes will reset your current quiz progress. Continue?')){
+    syncModeButtons();
+    return;
+  }
+  quizMode=mode;
+  resetQuizState(false);
+  renderQ();
+  showToast(mode==='learn'?'Learning mode enabled.':'Testing mode enabled.','ok');
+}
+
+// ── TOOLS ──
+function toggleTool(mode){
+  toolMode=toolMode===mode?'':mode;
+  syncToolButtons();
+}
+function getCurrentAnnotationRoot(){
+  return document.querySelector(uiMode==='nbme'?'#nbContent':'#qArea');
+}
+function persistCurrentAnnotationsFromDOM(){
+  var root=getCurrentAnnotationRoot();
+  if(!root)return;
+  var stem=root.querySelector('[data-stem-html]');
+  if(stem)stemMarkup[CQ]=stem.innerHTML;
+  var nodes=root.querySelectorAll('[data-choice-html]');
+  if(nodes.length){
+    var arr=ensureChoiceMarkup(CQ);
+    nodes.forEach(function(node){
+      arr[Number(node.getAttribute('data-choice-html'))]=node.innerHTML;
+    });
+  }
+}
+function stripAnnotationTags(html){
+  var wrap=document.createElement('div');
+  wrap.innerHTML=html;
+  wrap.querySelectorAll('mark,s').forEach(function(node){
+    node.replaceWith(document.createTextNode(node.textContent));
+  });
+  return wrap.innerHTML;
+}
+function clearMarks(){
+  if(!questions.length)return;
+  stemMarkup[CQ]=stripAnnotationTags(getStemHTML(CQ));
+  var cleaned=[];
+  questions[CQ].choices.forEach(function(_,idx){
+    cleaned[idx]=stripAnnotationTags(getChoiceHTML(CQ,idx));
+  });
+  choiceMarkup[CQ]=cleaned;
+  renderQ();
+  showToast('Annotations cleared.','ok');
+}
+function applyFontSize(){
+  var root=document.documentElement;
+  var viewportScale=parseFloat(getComputedStyle(root).getPropertyValue('--viewport-scale'))||1;
+  var stemBase=25*viewportScale;
+  var choiceBase=15.5*viewportScale;
+  var stemSize=stemBase+(fontStep*2.5*viewportScale);
+  var choiceSize=choiceBase+(fontStep*1.2*viewportScale);
+  root.style.setProperty('--stem-size',stemSize.toFixed(1)+'px');
+  root.style.setProperty('--choice-size',choiceSize.toFixed(1)+'px');
+}
+function adjustFontSize(delta){
+  fontStep=Math.max(-2,Math.min(4,fontStep+delta));
+  applyFontSize();
+}
+function resetFontSize(){
+  fontStep=0;
+  applyFontSize();
+}
+function selectionIntersectsNode(range,node){
+  if(typeof range.intersectsNode==='function'){
+    try{return range.intersectsNode(node);}catch(e){}
+  }
+  var nodeRange=document.createRange();
+  nodeRange.selectNodeContents(node);
+  return !(
+    range.compareBoundaryPoints(Range.END_TO_START,nodeRange)<=0||
+    range.compareBoundaryPoints(Range.START_TO_END,nodeRange)>=0
+  );
+}
+function getScopedAnnotationSegments(range,root){
+  return Array.from(root.querySelectorAll('[data-stem-html],[data-choice-html]')).map(function(scope){
+    if(!selectionIntersectsNode(range,scope))return null;
+    var scopedRange=document.createRange();
+    scopedRange.selectNodeContents(scope);
+    if(range.compareBoundaryPoints(Range.START_TO_START,scopedRange)>0){
+      scopedRange.setStart(range.startContainer,range.startOffset);
+    }
+    if(range.compareBoundaryPoints(Range.END_TO_END,scopedRange)<0){
+      scopedRange.setEnd(range.endContainer,range.endOffset);
+    }
+    if(scopedRange.collapsed)return null;
+    return {scope:scope,range:scopedRange};
+  }).filter(Boolean);
+}
+function collectTextNodesInRange(range,scope){
+  var nodes=[];
+  var walker=document.createTreeWalker(scope,NodeFilter.SHOW_TEXT,{
+    acceptNode:function(node){
+      if(!node.textContent)return NodeFilter.FILTER_REJECT;
+      return selectionIntersectsNode(range,node)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_REJECT;
+    }
+  });
+  var current;
+  while((current=walker.nextNode()))nodes.push(current);
+  return nodes;
+}
+function wrapSelectedTextNode(node,range,mode){
+  var start=0;
+  var end=node.textContent.length;
+  if(node===range.startContainer&&range.startContainer.nodeType===Node.TEXT_NODE)start=range.startOffset;
+  if(node===range.endContainer&&range.endContainer.nodeType===Node.TEXT_NODE)end=range.endOffset;
+  if(start>=end)return 0;
+  if(start>0){
+    node=node.splitText(start);
+    end-=start;
+  }
+  if(end<node.textContent.length)node.splitText(end);
+  var wrapper=document.createElement(mode==='hl'?'mark':'s');
+  node.parentNode.insertBefore(wrapper,node);
+  wrapper.appendChild(node);
+  return 1;
+}
+function applyTextAnnotation(range,root,mode){
+  var applied=0;
+  getScopedAnnotationSegments(range,root).forEach(function(segment){
+    collectTextNodesInRange(segment.range,segment.scope).forEach(function(node){
+      applied+=wrapSelectedTextNode(node,segment.range,mode);
+    });
+  });
+  return applied>0;
+}
+document.addEventListener('mouseup',function(){
+  if(!toolMode||!questions.length)return;
+  var selection=window.getSelection();
+  if(!selection||selection.isCollapsed||!selection.rangeCount)return;
+  var range=selection.getRangeAt(0);
+  var container=range.commonAncestorContainer;
+  var root=getCurrentAnnotationRoot();
+  if(!root||!root.contains(container))return;
+  try{
+    if(!applyTextAnnotation(range,root,toolMode))return;
+    selection.removeAllRanges();
+    persistCurrentAnnotationsFromDOM();
+  }catch(e){}
+});
+
+// ── TIMER ──
+function formatTimer(totalSeconds){
+  var hours=Math.floor(totalSeconds/3600);
+  var minutes=Math.floor((totalSeconds%3600)/60);
+  var seconds=totalSeconds%60;
+  if(hours>0)return hours+':'+String(minutes).padStart(2,'0')+':'+String(seconds).padStart(2,'0');
+  return String(minutes).padStart(2,'0')+':'+String(seconds).padStart(2,'0');
+}
+function toggleTimer(){
+  if(timerRunning)pauseTimer();
+  else startTimer();
+}
+function startTimer(){
+  if(timerRunning)return;
+  timerRunning=true;
+  clearInterval(timerInterval);
+  timerInterval=setInterval(function(){
+    timerSec++;
+    updTimer();
+  },1000);
+  updTimer();
+}
+function pauseTimer(){
+  timerRunning=false;
+  clearInterval(timerInterval);
+  updTimer();
+}
+function resetTimer(){
+  pauseTimer();
+  timerSec=0;
+  updTimer();
+}
+function updTimer(){
+  var timeText=formatTimer(timerSec);
+  document.getElementById('timerTime').textContent=timeText;
+  document.getElementById('nbTimerTime').textContent=timeText;
+  document.getElementById('timerPlayBtn').textContent=timerRunning?'⏸':'▶';
+  document.getElementById('nbTimerToggle').textContent=timerRunning?'Pause':'Start';
+  document.getElementById('nbTimerStatus').textContent=timerRunning?'Running':'Paused';
+  document.getElementById('timerCard').classList.toggle('run',timerRunning);
+  document.getElementById('nbTimerCard').classList.toggle('run',timerRunning);
+  document.getElementById('timerCard').classList.toggle('warn',timerSec>90);
+  document.getElementById('nbTimerCard').classList.toggle('warn',timerSec>90);
+}
+
+// ── FINISH / RESET ──
+function showFinish(){
+  summaryVisible=false;
+  renderQ();
+  scrollQuizViewportTop();
+}
+function resetQuiz(){
+  if(!questions.length)return;
+  resetQuizState(true);
+  renderQ();
+  scrollQuizViewportTop();
+}
+function exitQuiz(){
+  pauseTimer();
+  reviewOpen=false;
+  switchView('viewSetup');
+}
+
+// ── VIEW ──
+function syncViewportSize(){
+  var root=document.documentElement;
+  var width=window.innerWidth||1280;
+  var height=window.innerHeight||800;
+  var widthNormalized=(Math.min(Math.max(width,1200),1800)-1200)/600;
+  var heightNormalized=(Math.min(Math.max(height,760),1200)-760)/440;
+  var viewportScale=Math.max(.94,Math.min(1.24,1+(widthNormalized*.18)+(heightNormalized*.06)));
+  root.style.setProperty('--app-vh',height+'px');
+  root.style.setProperty('--app-vw',width+'px');
+  root.style.setProperty('--viewport-scale',viewportScale.toFixed(3));
+  root.style.setProperty('--ui-title-size',(26*viewportScale).toFixed(1)+'px');
+  root.style.setProperty('--ui-control-size',(13*viewportScale).toFixed(1)+'px');
+  root.style.setProperty('--ui-meta-size',(12*viewportScale).toFixed(1)+'px');
+  root.style.setProperty('--ui-micro-size',(10*viewportScale).toFixed(1)+'px');
+  applyFontSize();
+}
+function switchView(id){
+  document.querySelectorAll('.view').forEach(function(view){view.classList.remove('active');});
+  document.getElementById(id).classList.add('active');
+  document.body.classList.toggle('nbme-lock',id==='viewQuizNbme');
+  syncViewportSize();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ── HELPERS ──
+function showErr(msg){
+  var el=document.getElementById('errMsg');
+  el.textContent='❌ '+msg;
+  el.className='err-msg show';
+}
+function showToast(msg,type){
+  var wrap=document.getElementById('toastWrap');
+  var toast=document.createElement('div');
+  toast.className='toast '+(type||'ok');
+  toast.textContent=msg;
+  wrap.appendChild(toast);
+  setTimeout(function(){
+    toast.style.animation='toastOut .28s ease forwards';
+    setTimeout(function(){if(toast.parentNode)toast.parentNode.removeChild(toast);},300);
+  },2800);
+}
+document.addEventListener('keydown',function(event){
+  if(!questions.length||document.getElementById('viewSetup').classList.contains('active'))return;
+  if(event.target.matches('textarea,input,select'))return;
+  if(event.key==='Escape'&&document.getElementById('labModal').classList.contains('open')){
+    closeLabs();
+    return;
+  }
+  if(event.key==='ArrowRight')nextQ();
+  if(event.key==='ArrowLeft')prevQ();
+  if(!answers[CQ]&&/^[a-eA-E]$/.test(event.key))pick(event.key.toUpperCase().charCodeAt(0)-65);
+});
+window.addEventListener('resize',syncViewportSize);
+window.addEventListener('orientationchange',syncViewportSize);
+
+syncViewportSize();
+syncLaunchUIButtons();
+syncModeButtons();
+syncToolButtons();
+updScore();
+updTimer();
+applyFontSize();
+hydratePreloadedQuiz();
+</script></body></html>
