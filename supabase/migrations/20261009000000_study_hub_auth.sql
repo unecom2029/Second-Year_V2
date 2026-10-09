@@ -4,7 +4,7 @@ create table public.study_hub_approved_emails (
   email text primary key,
   display_name text not null,
   created_at timestamptz not null default now(),
-  constraint study_hub_approved_email_format check (email = lower(email) and email ~ '^[^@[:space:]]+@une\.edu$')
+  constraint study_hub_approved_email_format check (email = lower(email) and email ~ '^[^@[:space:]]+@une[.]edu$')
 );
 
 alter table public.study_hub_approved_emails enable row level security;
