@@ -4745,8 +4745,8 @@ function setupAuth(){
     var button=document.getElementById('authSubmit');
     try{if(input)input.value=sessionStorage.getItem(SUPABASE_LOGIN_EMAIL_KEY)||''}catch(err){}
     if(title)title.textContent='Sign in with your UNE account';
-    if(subtitle)subtitle.innerHTML='Enter your approved <strong>@une.edu</strong> email to start UNE sign-in.';
-    if(button)button.textContent='Continue with UNE account';
+    if(subtitle)subtitle.innerHTML='Enter your approved <strong>@une.edu</strong> email. Your school sign-in will open next.';
+    if(button)button.textContent='Sign in with UNE';
     setAuthMsg('Checking your secure sign-in…','');
   }
   prepareAuthLoginEffect();
