@@ -4585,6 +4585,27 @@ var SUPABASE_CLIENT=null;
 var SUPABASE_AUTH_CHECK=null;
 var SUPABASE_OAUTH_PENDING_KEY='une-study-hub-oauth-pending-v1';
 var SUPABASE_LOGIN_EMAIL_KEY='une-study-hub-login-email-v1';
+var SUPABASE_RETURN_KEY='une-study-hub-return-v1';
+function getProtectedReturnPath(){
+  var value;
+  try{value=sessionStorage.getItem(SUPABASE_RETURN_KEY)}catch(err){}
+  if(!value||value.charAt(0)!=='/'||value.charAt(1)==='/'||value.indexOf('\\')!==-1)return null;
+  try{
+    var parsed=new URL(value,location.origin);
+    if(parsed.origin!==location.origin||parsed.pathname==='/'||parsed.pathname==='/index.html'||parsed.pathname.startsWith('/api/'))return null;
+    return parsed.pathname+parsed.search+parsed.hash;
+  }catch(err){return null}
+}
+async function syncProtectedSession(session){
+  if(!session||!session.access_token)throw new Error('Supabase session is unavailable');
+  var response=await fetch('/api/session',{
+    method:'POST',
+    headers:{authorization:'Bearer '+session.access_token},
+    credentials:'same-origin',
+    cache:'no-store'
+  });
+  if(!response.ok)throw new Error('Study Hub content access could not be established: '+response.status);
+}
 function isSupabaseAuthMode(){
   var host=window.location.hostname.toLowerCase();
   return host==='second-year.mehtajeeval1.workers.dev'
@@ -4611,6 +4632,11 @@ function clearOAuthPending(){
   try{sessionStorage.removeItem(SUPABASE_OAUTH_PENDING_KEY)}catch(err){}
 }
 function setupSupabaseAuth(){
+  try{
+    var requested=new URL(location.href).searchParams.get('return');
+    if(requested&&requested.charAt(0)==='/'&&requested.charAt(1)!=='/')
+      sessionStorage.setItem(SUPABASE_RETURN_KEY,requested);
+  }catch(err){}
   var config=window.STUDY_HUB_SUPABASE||{};
   var url;
   try{url=new URL(config.url)}catch(err){}
@@ -4641,6 +4667,13 @@ function setupSupabaseAuth(){
       if(event==='SIGNED_OUT'){
         if(AUTH_STATE.user)location.reload();
         return;
+      }
+      if(event==='TOKEN_REFRESHED'&&session&&AUTH_STATE.user){
+        setTimeout(function(){
+          syncProtectedSession(session).catch(function(err){
+            console.error('Study Hub content session refresh failed',err);
+          });
+        },0);
       }
       if(session&&session.user&&!AUTH_STATE.user){
         // Supabase recommends doing other auth API calls after this callback returns.
@@ -4686,6 +4719,18 @@ function verifySupabaseSession(){
       setAuthMsg('That UNE account is not approved yet. Please contact admin for access.','error');
       return;
     }
+    var currentSession=await SUPABASE_CLIENT.auth.getSession();
+    if(currentSession.error||!currentSession.data||!currentSession.data.session){
+      setAuthMsg('Your session could not be verified. Please sign in again.','error');
+      return;
+    }
+    try{
+      await syncProtectedSession(currentSession.data.session);
+    }catch(err){
+      console.error('Study Hub content session setup failed',err);
+      setAuthMsg('Access could not be checked. Please reload and try again.','error');
+      return;
+    }
     var metadata=identity.user_metadata||{};
     AUTH_STATE.user={
       id:identity.id,
@@ -4693,6 +4738,13 @@ function verifySupabaseSession(){
       name:approval.data.display_name||metadata.full_name||metadata.name||nameFromEmail(email)
     };
     window.StudyHubAuth={getUserId:function(){return AUTH_STATE.user&&AUTH_STATE.user.id||null}};
+    var returnPath=getProtectedReturnPath();
+    if(returnPath){
+      try{sessionStorage.removeItem(SUPABASE_RETURN_KEY)}catch(err){}
+      clearOAuthPending();
+      location.assign(returnPath);
+      return;
+    }
     if(readOAuthPending()){
       clearOAuthPending();
       playRandomLoginEffect(AUTH_STATE.user);
@@ -5947,6 +5999,8 @@ function playWelcome(user){
 async function logoutApp(){
   if(isSupabaseAuthMode()){
     if(!SUPABASE_CLIENT)return;
+    try{await fetch('/api/logout',{method:'POST',credentials:'same-origin',cache:'no-store'})}
+    catch(err){console.error('Study Hub content sign-out failed',err)}
     var result=await SUPABASE_CLIENT.auth.signOut();
     if(result.error){
       console.error('Study Hub sign-out failed',result.error);
@@ -5954,6 +6008,7 @@ async function logoutApp(){
     }
     AUTH_STATE.user=null;
     clearOAuthPending();
+    try{sessionStorage.removeItem(SUPABASE_RETURN_KEY)}catch(err){}
     location.reload();
     return;
   }

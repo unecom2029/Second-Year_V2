@@ -645,6 +645,8 @@ body.nbme-lock{overflow:hidden}
 @media print{.study-window,.study-toolbar{display:none!important}}
 
 </style>
+<style id="study-hub-print-guard">@media print{html{display:none!important}}</style>
+<script>window.print=function(){return false};</script>
 </head>
 <body>
 <div class="toast-wrap" id="toastWrap"></div>

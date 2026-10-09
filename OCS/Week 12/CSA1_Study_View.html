@@ -338,7 +338,9 @@ window.appendSoapPracticeEntry=function(root,g,c){const card=tag('section',undef
 window.openSoapPractice=(g=0,c=0)=>open(g,c,document.activeElement);
 new MutationObserver(()=>{if(active&&(document.documentElement.dataset.studyAuth==='locked'||owner()!==active.owner))close();}).observe(document.documentElement,{attributes:true,attributeFilter:['data-study-auth']});
 })();
-</script></head><body>
+</script><style id="study-hub-print-guard">@media print{html{display:none!important}}</style>
+<script>window.print=function(){return false};</script>
+</head><body>
 <div id="studyAuthGate" role="dialog" aria-modal="true" aria-labelledby="studyAuthTitle">
   <div class="study-auth-card">
     <div class="study-auth-kicker">2nd Year Study Hub</div>

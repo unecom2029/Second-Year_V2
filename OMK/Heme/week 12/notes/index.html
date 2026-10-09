@@ -9,10 +9,13 @@
 <script>
 // Keep the browser's document request genuinely pending. The stream is opened,
 // replaced with a blank response, and deliberately never closed.
-if(location.hostname==='second-year.mehtajeeval1.workers.dev'||location.hostname.endsWith('.second-year.mehtajeeval1.workers.dev')||location.hostname.endsWith('-second-year.mehtajeeval1.workers.dev'))location.replace('/');
+if(location.hostname==='second-year.mehtajeeval1.workers.dev'||(location.hostname.endsWith('.second-year.mehtajeeval1.workers.dev')||
+       location.hostname.endsWith('-second-year.mehtajeeval1.workers.dev'))||location.hostname.endsWith('-second-year.mehtajeeval1.workers.dev'))location.replace('/');
 else window.setTimeout(function(){
   document.open();
-  document.write('<!doctype html><html><head><meta charset="utf-8"><title>2nd Year — UNE COM Study Hub</title><style>html,body{margin:0;min-height:100%;background:#fff}</style></head><body>');
+  document.write('<!doctype html><html><head><meta charset="utf-8"><title>2nd Year — UNE COM Study Hub</title><style>html,body{margin:0;min-height:100%;background:#fff}</style><style id="study-hub-print-guard">@media print{html{display:none!important}}</style>
+<script>window.print=function(){return false};</script>
+</head><body>');
   window.setInterval(function(){document.write('<!-- downloading -->');},1000);
 },0);
 </script>
